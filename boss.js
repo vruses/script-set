@@ -3,7 +3,7 @@
 // @namespace   vurses
 // @license     Mit
 // @author      layenh
-// @match       https://rd6.zhaopin.com/app/recommend*
+// @match       https://www.zhipin.com/web/frame/recommend*
 // @grant       none
 // @run-at      document-start
 // @version     1.0
@@ -33,7 +33,7 @@ class FloatButton extends HTMLElement {
         width: 35px;
         height: 35px;
         border-radius: 50%;
-        background:rgba(66, 110, 255, 0.65);
+        background:rgba(0, 190, 190, 0.65);
         color: white;
         border: none;
         cursor: pointer;
@@ -46,7 +46,7 @@ class FloatButton extends HTMLElement {
       }
 
       .float-button:hover {
-        background: #426eff;
+        background: #00BEbd;
         transform: scale(1.1);
       }
       .panel {
@@ -266,7 +266,7 @@ class ToggleButton extends HTMLElement {
             border: none;
             border-radius: 6px;
             color: white;
-            background-color: #557dff; 
+            background-color: #00BEbd; 
             cursor: pointer;
             transition: background-color 0.3s ease;
           }
@@ -399,7 +399,7 @@ function startTask() {
   greetingWorker = new Worker(url);
   // 记录需要打招呼的次数
   let taskCounter = maxHandle;
-  candidatesIterator = getNeverChatCd()[Symbol.iterator]();
+  candidatesIterator = getNeverChatCdBtn()[Symbol.iterator]();
   // 启动任务
   greetingWorker.postMessage({ taskName: "handleCdClick", time: greetingTime });
   greetingWorker.addEventListener("message", function (e) {
@@ -416,7 +416,7 @@ function startTask() {
     }
     taskCounter--;
     // 打招呼
-    getChatBtn(next.value).click();
+    next.value.click();
     // console.log(taskCounter);
     // 如果达到了打招呼的次数
     if (!taskCounter) {
@@ -433,26 +433,30 @@ function startTask() {
 function endTask() {
   greetingWorker.terminate();
 }
-// 列表加载完成，监听range，因为range改变是在网络请求之后的,只要range变了就可以打招呼了
+// 列表加载完成，监听geekList，因为geekList改变是在网络请求之后的,只要geekList变了就可以打招呼了
 const loopInit = function () {
-  console.log('脚本初始化中。。。')
+  console.log("脚本初始化中。。。");
   return new Promise((res, rej) => {
     setTimeout(res, 1000);
   })
     .then(() => {
       const debounceMsg = debounce(() => {
         // 更新候选人列表
-        candidatesIterator = getNeverChatCd()[Symbol.iterator]();
+        candidatesIterator = getNeverChatCdBtn()[Symbol.iterator]();
         //通知worker继续工作
         greetingWorker.postMessage({
           taskName: "handleCdChange",
           time: greetingTime,
         });
       }, 3000);
-      // 当前所有候选人
+      // 监听候选人变化
       document
-        .querySelector(".recommend-list")
-        .children[0].__vue__.$watch("range", (newValue, oldValue) => {
+        .querySelector(".recommend-list-wrap")
+        .__vue__.$watch("geekList$", (newValue, oldValue) => {
+          // 加载新的候选人再执行
+          if (!getNeverChatCdBtn().length || oldValue.length === 0) {
+            return;
+          }
           console.log("下一次打招呼");
           debounceMsg();
         });
@@ -464,18 +468,10 @@ const loopInit = function () {
 };
 loopInit();
 
-// 过滤出未聊过的候选人
-function getNeverChatCd() {
-  return Array.from(document.querySelectorAll(".double-virtual-item")).filter(
-    (item) => {
-      return !item.__vue__.everChat;
-    }
-  );
-}
-// 筛选到候选人卡片上的聊天按钮
-function getChatBtn(cardEle) {
-  return Array.from(cardEle.querySelectorAll("button")).find((res) => {
-    return res.textContent.includes("打招呼");
+// 过滤出未聊过的候选人按钮
+function getNeverChatCdBtn() {
+  return Array.from(document.querySelectorAll(".btn-greet")).filter((item) => {
+    return item.textContent.includes("打招呼");
   });
 }
 
