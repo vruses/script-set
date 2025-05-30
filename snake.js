@@ -36,12 +36,15 @@ const rEvent = new KeyboardEvent("keydown", {
 const originalCall = Function.prototype.call;
 // 蛇身不能触碰食物
 Function.prototype.call = function (...args) {
-  if (this.name === "77935") {
+  if (this.name === "94537") {
     let temp = this.toString();
-    temp.indexOf(`while(p.current.has("".concat(e,":").concat(r)));`);
+    temp.indexOf(`while(p.current.has("".concat(e,":").concat(t)));`);
+    console.log(
+      temp.indexOf(`while(p.current.has("".concat(e,":").concat(t)));`)
+    );
     // 初始-50是因为默认会加执行三次，游戏开始food位置正好为10
     temp = temp.replace(
-      `while(p.current.has("".concat(e,":").concat(r)));`,
+      `while(p.current.has("".concat(e,":").concat(t)));`,
       (res) =>
         res +
         `window.yCoord=window.yCoord!==undefined?window.yCoord:-50;
@@ -50,7 +53,7 @@ Function.prototype.call = function (...args) {
         `
     );
     temp = temp.replace(
-      `g.current={row:e,col:r}}`,
+      `g.current={row:e,col:t}}`,
       `g.current={row:0,col:window.yCoord}}`
     );
     temp = eval("(" + temp + ")");
