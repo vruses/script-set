@@ -3,7 +3,8 @@
 // @namespace   vurses
 // @license     Mit
 // @author      layenh
-// @match       https://www.ihuaben.com/book/*
+// @match       https://www.ihuaben.com/book/*.html
+// @exclude     https://www.ihuaben.com/book/*/*
 // @grant       GM_registerMenuCommand
 // @grant       GM.registerMenuCommand
 // @grant       unsafeWindow
