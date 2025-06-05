@@ -65,6 +65,9 @@ class FloatButton extends HTMLElement {
         transition: all 0.3s ease;
         pointer-events: none;
       }
+      .input-group {
+        margin-bottom: 5px;
+      }
       .panel.open {
         opacity: 1;
         transform: translateX(0);
@@ -77,7 +80,10 @@ class FloatButton extends HTMLElement {
     <button class="float-button">+</button>
       <div class="panel">
         <div class="input-group">
-        <slot name="button">Widget Missing</slot>
+        <slot name="button1">Widget Missing</slot>
+        </div>
+        <div class="input-group">
+        <slot name="button2">Widget Missing</slot>
         </div>
       </div>`;
     shadowRoot.append(style);
@@ -94,6 +100,8 @@ class ToggleButton extends HTMLElement {
   constructor() {
     super();
     this.isDanger = false;
+    this.dangerContent = "结束执行";
+    this.successContent = "开始执行";
     this.attachShadow({ mode: "open" });
 
     // 初始化按钮样式与结构
@@ -136,10 +144,10 @@ class ToggleButton extends HTMLElement {
   updateButton() {
     if (this.isDanger) {
       this.button.classList.add("danger");
-      this.button.textContent = "结束执行";
+      this.button.textContent = this.dangerContent;
     } else {
       this.button.classList.remove("danger");
-      this.button.textContent = "开始执行";
+      this.button.textContent = this.successContent;
     }
   }
 }
@@ -205,6 +213,21 @@ async function modalShow() {
       return modalShow();
     });
 }
+async function toolTipShow() {
+  return await new Promise((res) => {
+    setTimeout(res, 50);
+  })
+    .then(() => {
+      // 等待提示框加载
+      document.querySelectorAll(
+        '[class*="MuiTooltip-tooltip"] [class*=Item_actionMenu]'
+      )[0];
+    })
+    .catch(() => {
+      console.log("提示框加载中。。。");
+      return modalShow();
+    });
+}
 async function modalProcessor(isBuy) {
   const orderBookTables = document.querySelectorAll(
     'table[class*="orderBookTable"]'
@@ -218,14 +241,6 @@ async function modalProcessor(isBuy) {
   } else {
     sellOrdersTable.querySelector("button").click();
   }
-  // 包含价格和数量调整的输入元素
-  // while (
-  //   document.querySelectorAll(
-  //     '[class*="Modal_modal"] [class*=MarketplacePanel_inputContainer]'
-  //   )
-  // ) {
-  //   break;
-  // }
   await modalShow();
   const inputList = document.querySelectorAll(
     '[class*="Modal_modal"] [class*=MarketplacePanel_inputContainer]'
@@ -276,10 +291,41 @@ function startTask() {
 function endTask() {
   worker.terminate();
 }
+// 清空仓库
+async function clearStock() {
+  // 仓库元素
+  const ele = document.querySelector("[class*=Inventory_items]");
+  try {
+    for (const item of ele.querySelectorAll("[class*=Item_clickable]")) {
+      item.click();
+      await toolTipShow();
+      const firstTip = document.querySelector(
+        '[class*="MuiTooltip-tooltip"] [class*=Item_amountInputContainer]'
+      );
+      // 如果不可售卖则跳过
+      if (!firstTip) {
+        // 再次点击物品跳过
+        continue;
+      }
+      // '全部'按钮
+      const bothBtn = Array.from(firstTip.querySelectorAll("button")).at(-1);
+      const sellBtn = document.querySelector("[class*=Button_sell]");
+      bothBtn.click();
+      sellBtn.click();
+      // 等待一会才能清空
+      setTimeout(() => {
+        sellBtn.click();
+      }, 1000);
+    }
+  } catch (error) {
+    console.log(error);
+    alert("此页无库存商品!");
+  }
+}
 
-// 状态按钮
+// 执行按钮
 const statusBtn = document.createElement("toggle-button");
-statusBtn.slot = "button";
+statusBtn.slot = "button1";
 statusBtn.isDanger = false;
 statusBtn._isDanger = statusBtn.isDanger;
 Object.defineProperty(statusBtn, "isDanger", {
@@ -295,6 +341,25 @@ Object.defineProperty(statusBtn, "isDanger", {
     this._isDanger = isDanger;
   },
 });
+// 仓库清空按钮
+const clearBtn = document.createElement("toggle-button");
+clearBtn.slot = "button2";
+clearBtn.isDanger = false;
+clearBtn.successContent = "清空仓库";
+clearBtn.dangerContent = "确认清空";
+clearBtn._isDanger = clearBtn.isDanger;
+Object.defineProperty(clearBtn, "isDanger", {
+  get() {
+    return this._isDanger;
+  },
+  set(isDanger) {
+    // 确认清空仓库
+    if (!isDanger) {
+      clearStock();
+    }
+    this._isDanger = isDanger;
+  },
+});
 const floatButton = document.createElement("float-button");
-floatButton.append(statusBtn);
+floatButton.append(statusBtn, clearBtn);
 document.documentElement.append(floatButton);
