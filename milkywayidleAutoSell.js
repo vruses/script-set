@@ -255,32 +255,37 @@ let worker;
 /**
  * 等待某个指定的 DOM 元素加载完成（出现在页面上）
  * @param {string} selector - 要等待的 CSS 选择器
- * @param {number} timeout - 可选，最大等待时间（毫秒），默认 500
+ * @param {number} timeout - 可选，最大等待时间（毫秒），默认 5000
  * @returns {Promise<Element>} - 返回匹配的元素
  */
-async function awaitElementLoad(selector, timeout = 500) {
+async function awaitElementLoad(selector, timeout = 5000, interval = 100) {
   return new Promise((resolve, reject) => {
-    const element = document.querySelector(selector);
-    if (element) return resolve(element);
+    const start = Date.now();
 
-    const observer = new MutationObserver(() => {
-      const el = document.querySelector(selector);
-      if (el) {
-        observer.disconnect();
-        resolve(el);
+    const check = () => {
+      try {
+        const element = document.querySelector(selector);
+        if (element !== undefined && element !== null) {
+          clearInterval(timer);
+          resolve(element);
+        } else if (Date.now() - start >= timeout) {
+          clearInterval(timer);
+          reject(new Error(`元素 "${selector}" 加载超时 (${timeout}ms)`));
+        }
+      } catch (err) {
+        // 如果报错也继续轮询，直到超时
+        if (Date.now() - start >= timeout) {
+          clearInterval(timer);
+          reject(
+            new Error(
+              `元素 "${selector}" 加载出错并超时 (${timeout}ms): ${err.message}`
+            )
+          );
+        }
       }
-    });
+    };
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
-
-    // 设置超时
-    setTimeout(() => {
-      observer.disconnect();
-      reject(new Error(`元素 "${selector}" 加载超时 (${timeout}ms)`));
-    }, timeout);
+    const timer = setInterval(check, interval);
   });
 }
 
@@ -348,7 +353,6 @@ function startTask() {
       await modalProcessor(false);
     } catch (error) {
       console.log(error);
-      alert("在’市场‘才能执行任务！");
       throw "在’市场‘才能执行任务！";
     }
     //等待一段时间再继续
