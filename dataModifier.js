@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name        修改订单数据
+// @name        修改店铺数据
 // @namespace   vurses
 // @license     Mit
 // @author      layenh
@@ -7,23 +7,19 @@
 // @grant       none
 // @version     1.0
 // @run-at      document-start
-// @description 修改订单数据
+// @description 修改店铺数据
 // ==/UserScript==
 
 (() => {
   // 修改头像
   // 店铺Logo
-  const shopLogo =
-    "data:image/jpeg;base64,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";
+  const shopLogo = "";
   // 营业照
-  const businessLiscenseImg =
-    "data:image/jpeg;base64,AAAAHGZ0eXBhdmlmAAAAAGF2aWZtaWYxbWlhZgAAAOptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABwaWN0AAAAAAAAAAAAAAAAAAAAAA5waXRtAAAAAAABAAAAImlsb2MAAAAAREAAAQABAAAAAAEOAAEAAAAAAAAF6wAAACNpaW5mAAAAAAABAAAAFWluZmUCAAAAAAEAAGF2MDEAAAAAamlwcnAAAABLaXBjbwAAABNjb2xybmNseAABAA0ABoAAAAAMYXYxQ4EADAAAAAAUaXNwZQAAAAAAAADwAAAA8AAAABBwaXhpAAAAAAMICAgAAAAXaXBtYQAAAAAAAAABAAEEAYIDBAAABfNtZGF0EgAKChgd+/vYICGg0IAy2gtEgACiiihQtIDqrkvPF1l+b90DLzEPNo7jbm8MUMGGUuKslo1owZD1WKBRgQ/2f406AlN00FgeyTrTTgl2N3L2WtrdDuFrTP1h/Nj/y8vB30i3CyIM1dTrmSCUOgVaFhBiXR2FxcZJOI9yBw/GBIZZ5KdPQafrWOAFWYuhbVmQSBwGnqsRBA76x+yeYrO4V2yLQ6OnFqpyZ9mIuhOlS/TePUfELDQ55lN1pmnFx58An5dtTY6L9N7ew5/j4LZnle2loske4Sld/QT6tT09zRcfCjsLSgX6J17LA4EpWo7Fd8ZA7+4FTZ5kICFXPMkitgbgMmPX9FksaV4I3oRT0gc5P/OQAwTb80beqnROrknzLfvadRXOc3jL5XXFt9xrGs5SyYmSqsvJJhGYhn+DeFM2qs1eh5iryQJVkIxmgRBn5HL/3CQfVPjCEw8x9jIduTsWlhUXXGOZFxIN6dFW1x+gLex+dFcUxA62vGuVLSqynO5qUrRIWlDowhE0CvocZsAm6m+bESQ9lx2myX665hAXO8FQtYXXVjUtmFyR5cB56kzFS50iigWSMzYFpqQUDI0ubvn891dbuwf0Env9w7tMiWbT7rBdkLNb/X/l6Q/zMzOlpTSyKn0GklbBr5yismlx5IWFn/p5+idowJyI7yk14X/Q3sq9ypkVrkTerhgjYf7gIAcdSsmJOHvwquxc222exmrpl5CubUT+tVh3S+j3XptKG+gdgXXGeTiwcpqq3aydRD3IEz1Fer514wFvs1iu2s4A1Bjb9vNBf3p/zvsyoAQGhwWunOZGJcEV2BgOZXb9HQsqUP/S0UV4yeWxZOLmO8OExFk+QTe1ieKha5J9+G9xX1uX3k5GgLchVEKjSVR9KVYftuY4ipGHFxlTtwN9igRt/kNJnmXUBXSC/zONSU18J2o8cVBETIGNpzwzetj9XG0Y0sXhjmUz95zo1h6Gqm91lIyYau6f8zEBRucpsiY4rESvn8QtCGUuzd2MmqVpSjI6vmS6DBqp8Te6lwdT40tTJiYI7AVcdZIMuAMW60/UqXwnwv490LrLg1lrrgK0LSkMjlTCEIVr3dO14WtF1aUEKFKklL7PPVouB+IGsMRE958I4TITUbZ4s2CYKn9C+JDog+MszzWF9NZ0ZYIjFgML2a1ma8IlGPXEWOGbEbWt/DU6NOwVQZ3GFXQs8zvF2QE+2+mZEuB6XFvg5STbTRaWSNkZDZAK79Hk5UH/t2/9BhJr3q2IuYFqDw6To2Clf0rA3dSg4ebYAi4JKnJrz/NTJ/eWI35B+Z312mZuGr+EwS7pvQyJiIa2rWdmfeFoSKcxtLe/eHH2ZBq6Ye/+3/dDhsBEMg1JZrwEGvTs3hf0qNZKdaaLpEdRx2gmyPgtnesn4BfNXD0oko7NbxtjsRtk6nQAKCl/Np5DPLz2FHs52M+JlBPd12AES58muiDS6lWRNq4f9nnvFL2ShZQCc9HooGBfCpOFcpugDer0/kyHJJTfja8rOJobIu/BTUd17QOqEnnULMa2GZlo/KYjzPAvVtle9AZC3DCU4Z1JHIXIR8TWrTe9a7HA8tccL+0V1oFZQUHbygW2oVqLnVGxJOoROhQJ8/OMD/R/j8gOceE+M29bxFRFhYMwsPUrm79cj/sOQ6hhVCEClGfK+Of3ILxjlwfwN2O5UF28QIYG4DDFIpaH2jvSv4EDgQnbCvV8Fi9DTk5BW47JBaZv40VBrBoGEoZnJA0VokU2hnT6cuGhW8PuDc+AWNocs29yOBfvxmP/BVx35a85olXPGeQWzAgPub5F2OPrv5FNP4nbeuDC/rMdhtRDL+5q7EPBy6mHCLeqq7huUV9QIwmELMLKLo2btWstDirvPzfxSCPhacfJjTi4aXc8/e5sR//+KJusEYHymIEhSKEiPqT+WnBTgB1m747UE1HuldvkPt8ap87oSEALbQhf1wiaLRYDSxxXFt/bh/Ozu02nZN2Sk3eJ20LA9w3cUZpk";
+  const businessLiscenseImg = "";
   // 身份证正面
-  const idCardFrontImg =
-    "data:image/jpeg;base64,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";
+  const idCardFrontImg = "";
   // 身份证背面
-  const idCardBackImg =
-    "data:image/jpeg;base64,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";
+  const idCardBackImg = "";
   window.addEventListener("load", () => {
     Object.defineProperty(
       window["__SSR_CONFIG_ECOM_FXG_ADMIN"].initialData["fxg-admin"].userData
@@ -33,14 +29,85 @@
         get() {
           return shopLogo;
         },
-        set(value) {
-          // 可选：你也可以禁止修改或打印设置值
-          console.warn("shop_logo 被尝试设置为:", value);
+      }
+    );
+    let _shop_name =
+      window["__SSR_CONFIG_ECOM_FXG_ADMIN"].initialData["fxg-admin"].userData
+        .user.shop_name;
+    let _toutiao_id =
+      window["__SSR_CONFIG_ECOM_FXG_ADMIN"].initialData["fxg-admin"].userData
+        .user.toutiao_id;
+    Object.defineProperty(
+      window["__SSR_CONFIG_ECOM_FXG_ADMIN"].initialData["fxg-admin"].userData
+        .user,
+      "shop_name",
+      {
+        get() {
+          if (storage.get("shopInfo")) {
+            return storage.get("shopInfo").shop_name;
+          } else {
+            return _shop_name;
+          }
         },
-        configurable: true, // 允许后续修改或删除
+      }
+    );
+    Object.defineProperty(
+      window["__SSR_CONFIG_ECOM_FXG_ADMIN"].initialData["fxg-admin"].userData
+        .user,
+      "toutiao_id",
+      {
+        get() {
+          if (storage.get("shopInfo")) {
+            return storage.get("shopInfo").toutiao_id;
+          } else {
+            return _toutiao_id;
+          }
+        },
       }
     );
   });
+  /**
+   * 等待某个指定的 DOM 元素加载完成（即出现在页面中）
+   * @function
+   * @param {string} selector - 要等待的 DOM 元素的 CSS 选择器。
+   * @param {number} [timeout=5000] - 最大等待时间（以毫秒为单位），默认值为 5000 毫秒。
+   * @param {number} [interval=100] - 轮询检测间隔（以毫秒为单位），默认值为 100 毫秒。
+   * @returns {Promise<Element>} 返回一个 Promise，在元素出现在页面中时解析为该元素；如果超时则拒绝。
+   *
+   * @throws {Error} 如果在指定的超时时间内未找到元素，则会抛出错误。
+   */
+  async function awaitElementLoad(selector, timeout = 5000, interval = 100) {
+    return new Promise((resolve, reject) => {
+      const start = Date.now();
+
+      const check = () => {
+        try {
+          const element = document.querySelector(selector);
+          // console.log(selector);
+          // console.log(document.querySelector(selector));
+          if (element !== undefined && element !== null) {
+            clearInterval(timer);
+            resolve(element);
+          } else if (Date.now() - start >= timeout) {
+            clearInterval(timer);
+            reject(new Error(`元素 "${selector}" 加载超时 (${timeout}ms)`));
+          }
+        } catch (err) {
+          // 如果报错也继续轮询，直到超时
+          if (Date.now() - start >= timeout) {
+            clearInterval(timer);
+            reject(
+              new Error(
+                `元素 "${selector}" 加载出错并超时 (${timeout}ms): ${err.message}`
+              )
+            );
+          }
+        }
+      };
+
+      const timer = setInterval(check, interval);
+    });
+  }
 
   // 转化特定格式的字符串
   function parseMoneyToInt(str) {
@@ -91,6 +158,24 @@
     const xhr = this;
     const customOnReadyStateChange = function () {
       if (xhr.readyState === 4) {
+        //店铺信息接口
+        if (
+          xhr._interceptUrl.includes(
+            "https://fxg.jinritemai.com/byteshop/login/getmobilemail"
+          )
+        ) {
+          const resJson = JSON.parse(xhr.responseText);
+          Object.defineProperty(xhr, "responseText", {
+            get: function () {
+              const shopInfo = storage.get("shopInfo");
+              if (shopInfo) {
+                resJson.data.mobile = shopInfo.mobile;
+                resJson.data.user_name = shopInfo.user_name;
+              }
+              return JSON.stringify(resJson);
+            },
+          });
+        }
         // 资质照接口
         if (
           xhr._interceptUrl.includes(
@@ -100,16 +185,33 @@
           const resJson = JSON.parse(xhr.responseText);
           Object.defineProperty(xhr, "responseText", {
             get: function () {
+              const companyInfo = storage.get("companyInfo");
+              const legalPersonInfo = storage.get("legalPersonInfo");
               try {
                 // 营业照
                 resJson.data.subject_qual_info.company_info.license_img[0].url =
                   businessLiscenseImg;
+                // 如果修改过公司信息
+                if (companyInfo) {
+                  // 本地存储的字段是完全一样的
+                  resJson.data.subject_qual_info.company_info = {
+                    ...resJson.data.subject_qual_info.company_info,
+                    ...companyInfo,
+                  };
+                }
                 // 身份证正面
                 resJson.data.subject_qual_info.legal_person_info.identity_img[0].url =
                   idCardFrontImg;
                 // 身份证背面
                 resJson.data.subject_qual_info.legal_person_info.identity_img[1].url =
                   idCardBackImg;
+                // 如果修改过法人信息
+                if (legalPersonInfo) {
+                  resJson.data.subject_qual_info.legal_person_info = {
+                    ...resJson.data.subject_qual_info.legal_person_info,
+                    ...legalPersonInfo,
+                  };
+                }
               } catch (error) {
                 console.log(error);
               }
@@ -183,24 +285,8 @@
 
     return originalSend.apply(this, arguments);
   };
-
-  async function tableMounted() {
-    return await new Promise((res) => {
-      setTimeout(res, 500);
-    })
-      .then(() => {
-        // 等待表格数据加载
-        document
-          .querySelector('[id*="X-TABLE-fxg-bill"][id*="month"]')
-          .querySelectorAll("[data-row-key]")[1]
-          .querySelector("td");
-      })
-      .catch(() => {
-        return tableMounted();
-      });
-  }
   // 查询table并获取数据
-  function queryData(target) {
+  function queryBillTableData(target) {
     // 获取包含非表头行的数据的元素
     let dataEl = target.querySelectorAll("[data-row-key]");
     let dataList = [];
@@ -228,10 +314,75 @@
     }
     return dataList;
   }
-
-  async function main() {
+  // 查询公司信息
+  function queryCompanyInfo(target) {
+    const list = target.querySelectorAll("span");
+    return {
+      // 公司名称
+      company_name: list[0].textContent.trim(),
+      // 统一社会信用代码
+      license_code: list[1].textContent.trim(),
+      // 营业期限
+      business_term: list[2].textContent.trim(),
+      // 经营地址
+      business_address: [
+        // 经营省
+        { code: "330000", name: list[3].textContent.trim().split("-")[0] },
+        // 经营市
+        { code: "330800", name: list[3].textContent.trim().split("-")[1] },
+      ],
+      // 成立时间
+      establish_time: list[5].textContent.trim(),
+      // 核准时间
+      approval_time: list[6].textContent.trim(),
+    };
+  }
+  // 查询法人信息
+  function queryLegalPersonInfo(target) {
+    const list = target.querySelectorAll("span");
+    return {
+      // 法定代表人姓名
+      full_name: list[2].textContent.trim(),
+      // 法定代表人证件号码
+      identity_num: list[3].textContent.trim(),
+      // 证件开始日期
+      identity_begin_term: list[4].textContent.trim(),
+      // 证件截止日期
+      identity_term: list[5].textContent.trim(),
+      // 法定代表人证件地址
+      person_address_detail: list[6].textContent.trim(),
+    };
+  }
+  // 查询店铺信息
+  function queryShopInfo(target) {
+    const shop_name = target
+      .querySelector('[class*="index_shopName"]')
+      .textContent.trim();
+    const toutiao_id = target
+      .querySelector('[class*="index_shopIdValue"]')
+      .textContent.trim()
+      .split(":")[1];
+    const user_name = target
+      .querySelectorAll('[class*="index_itemContent"]')[0]
+      .textContent.trim();
+    const mobile = target
+      .querySelectorAll('[class*="index_itemContent"]')[1]
+      .textContent.trim();
+    return {
+      shop_name,
+      toutiao_id,
+      user_name,
+      mobile,
+    };
+  }
+  // 处理月汇总表格编辑
+  async function handleTableEdit() {
     // 等待月汇总表格加载完成
-    await tableMounted();
+    await awaitElementLoad(
+      '[id*="X-TABLE-fxg-bill"][id*="month"] td',
+      10e5,
+      1000
+    );
     // 获取table元素
     const table = document.querySelector(
       '[id*="X-TABLE-fxg-bill"][id*="month"]'
@@ -239,10 +390,72 @@
     table.contentEditable = "true";
     table.addEventListener("input", function () {
       // 获取数据
-      const data = queryData(this);
+      const data = queryBillTableData(this);
       // 本地存储数据
       storage.set("monthBill", data);
     });
+  }
+  // 处理公司信息编辑
+  async function handleCompanyInfoEdit() {
+    // 等待公司信息加载完成
+    await awaitElementLoad('[class*="previewFirst"]', 1000e5, 1000);
+    // 获取公司元素
+    const info = document.querySelector('[class*="previewFirst"]');
+
+    info.contentEditable = "true";
+    info.addEventListener("input", function () {
+      // 获取数据
+      const data = queryCompanyInfo(this);
+      // 本地存储数据
+      storage.set("companyInfo", data);
+    });
+  }
+  // 处理法人信息编辑
+  async function handleLegalPersonInfoEdit() {
+    // 等待法人信息加载完成
+    await awaitElementLoad('[class*="previewLast"]', 1000e5, 1000);
+    // 获取法人信息
+    const info = document.querySelector('[class*="previewLast"]');
+
+    info.contentEditable = "true";
+    info.addEventListener("input", function () {
+      // 获取数据
+      const data = queryLegalPersonInfo(this);
+      // 本地存储数据
+      storage.set("legalPersonInfo", data);
+    });
+  }
+  // 处理店铺信息编辑
+  async function handleShopInfoEdit() {
+    // 等待弹窗加载
+    await awaitElementLoad(
+      ".auxo-popover [class*=index_wrapper]",
+      1000e5,
+      1000
+    );
+    // 获取店铺信息
+    const popover = document.querySelector(
+      ".auxo-popover [class*=index_wrapper]"
+    );
+    popover.contentEditable = "true";
+    popover.addEventListener("mouseenter", function () {
+      popover.focus();
+    });
+    popover.addEventListener("mouseover", function () {
+      popover.focus();
+    });
+    popover.addEventListener("input", function () {
+      // 获取数据
+      const data = queryShopInfo(this);
+      // 本地存储数据
+      storage.set("shopInfo", data);
+    });
+  }
+  function main() {
+    handleTableEdit();
+    handleCompanyInfoEdit();
+    handleLegalPersonInfoEdit();
+    handleShopInfoEdit();
   }
   main();
 })();
