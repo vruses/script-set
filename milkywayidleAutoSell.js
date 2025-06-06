@@ -3,7 +3,7 @@
 // @namespace   vurses
 // @license     Mit
 // @author      layenh
-// @match       https://www.milkywayidle.com/game*
+// @match       https://www.milkywayidle.com/*
 // @grant       none
 // @version     1.0
 // @description 自动买卖
@@ -296,23 +296,27 @@ async function clearStock() {
   // 仓库元素
   const ele = document.querySelector("[class*=Inventory_items]");
   try {
+    // 点开所有的toolTip
     for (const item of ele.querySelectorAll("[class*=Item_clickable]")) {
       item.click();
-      await toolTipShow();
-      const firstTip = document.querySelector(
-        '[class*="MuiTooltip-tooltip"] [class*=Item_amountInputContainer]'
-      );
-      // 如果不可售卖则跳过
-      if (!firstTip) {
-        // 再次点击物品跳过
-        continue;
-      }
+    } 
+    // 等待toolTip显示
+    await toolTipShow();
+    const firstTips = document.querySelectorAll(
+      '[class*="MuiTooltip-tooltip"] [class*=Item_amountInputContainer]'
+    );
+    // 查找所有的全部按钮
+    for (let firstTip of firstTips) {
       // '全部'按钮
       const bothBtn = Array.from(firstTip.querySelectorAll("button")).at(-1);
-      const sellBtn = document.querySelector("[class*=Button_sell]");
       bothBtn.click();
+    }
+    const sellBtns = document.querySelectorAll("[class*=Button_sell]");
+    // 查找所有的卖出按钮
+    for (let sellBtn of sellBtns) {
       sellBtn.click();
-      // 等待一会才能清空
+      sellBtn.click();
+      // 等待一会才能卖
       setTimeout(() => {
         sellBtn.click();
       }, 1000);
