@@ -6,6 +6,7 @@
 // @match       https://www.milkywayidle.com/*
 // @grant       none
 // @version     1.0
+// @run-at      document-start
 // @description 自动买卖
 // ==/UserScript==
 
@@ -154,6 +155,59 @@ class ToggleButton extends HTMLElement {
 customElements.define("toggle-button", ToggleButton);
 customElements.define("float-button", FloatButton);
 
+const originalOpen = XMLHttpRequest.prototype.open;
+const originalSend = XMLHttpRequest.prototype.send;
+
+XMLHttpRequest.prototype.open = function (...args) {
+  // 便于在send阶段筛选特定请求
+  this._interceptUrl = args[1];
+  return originalOpen.apply(this, args);
+};
+
+XMLHttpRequest.prototype.send = function (body) {
+  const xhr = this;
+  const customOnReadyStateChange = function () {
+    if (xhr.readyState === 4) {
+      // 个人信息接口
+      if (
+        xhr._interceptUrl.includes("https://api.milkywayidle.com/v1/users/me")
+      ) {
+        const resJson = JSON.parse(xhr.responseText);
+        Object.defineProperty(xhr, "responseText", {
+          get: function () {
+            let id = "";
+            try {
+              id = resJson?.characters[0].id;
+            } catch (error) {
+              console.log(error);
+            }
+            // 在首页
+            if (location.href === "https://www.milkywayidle.com/") {
+              // 已登录
+              if (id) {
+                // 跳转游戏界面
+                location.href = `https://www.milkywayidle.com/game?characterId=${id}`;
+              }
+            }
+          },
+        });
+      }
+    }
+
+    if (xhr._originalOnReadyStateChange) {
+      xhr._originalOnReadyStateChange.apply(this, arguments);
+    }
+  };
+
+  if (!xhr._isHooked) {
+    xhr._originalOnReadyStateChange = xhr.onreadystatechange;
+    xhr.onreadystatechange = customOnReadyStateChange;
+    xhr._isHooked = true;
+  }
+
+  return originalSend.apply(this, arguments);
+};
+
 const workerJs = function () {
   class TimerManager {
     constructor() {
@@ -198,36 +252,38 @@ const blob = new Blob([`(${workerJs})()`], { type: "application/javascript" });
 const url = URL.createObjectURL(blob);
 let worker;
 
-async function modalShow() {
-  return await new Promise((res) => {
-    setTimeout(res, 50);
-  })
-    .then(() => {
-      // 等待弹窗加载
-      document.querySelectorAll(
-        '[class*="Modal_modal"] [class*=MarketplacePanel_inputContainer]'
-      )[0];
-    })
-    .catch(() => {
-      console.log("弹窗加载中。。。");
-      return modalShow();
+/**
+ * 等待某个指定的 DOM 元素加载完成（出现在页面上）
+ * @param {string} selector - 要等待的 CSS 选择器
+ * @param {number} timeout - 可选，最大等待时间（毫秒），默认 500
+ * @returns {Promise<Element>} - 返回匹配的元素
+ */
+async function awaitElementLoad(selector, timeout = 500) {
+  return new Promise((resolve, reject) => {
+    const element = document.querySelector(selector);
+    if (element) return resolve(element);
+
+    const observer = new MutationObserver(() => {
+      const el = document.querySelector(selector);
+      if (el) {
+        observer.disconnect();
+        resolve(el);
+      }
     });
-}
-async function toolTipShow() {
-  return await new Promise((res) => {
-    setTimeout(res, 50);
-  })
-    .then(() => {
-      // 等待提示框加载
-      document.querySelectorAll(
-        '[class*="MuiTooltip-tooltip"] [class*=Item_actionMenu]'
-      )[0];
-    })
-    .catch(() => {
-      console.log("提示框加载中。。。");
-      return modalShow();
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
     });
+
+    // 设置超时
+    setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`元素 "${selector}" 加载超时 (${timeout}ms)`));
+    }, timeout);
+  });
 }
+
 async function modalProcessor(isBuy) {
   const orderBookTables = document.querySelectorAll(
     'table[class*="orderBookTable"]'
@@ -241,16 +297,24 @@ async function modalProcessor(isBuy) {
   } else {
     sellOrdersTable.querySelector("button").click();
   }
-  await modalShow();
-  const inputList = document.querySelectorAll(
+  // 等待模态框加载
+  await awaitElementLoad(
     '[class*="Modal_modal"] [class*=MarketplacePanel_inputContainer]'
   );
+  const btnList = document.querySelectorAll('[class*="Modal_modal"] button');
   // 除2按钮
-  const halfBtn = Array.from(inputList[0].querySelectorAll("button")).at(0);
+  const halfBtn = Array.from(btnList).filter((btn) => {
+    return btn.textContent.trim() === "÷2";
+  })[0];
   // 乘2按钮
-  const twiceBtn = Array.from(inputList[0].querySelectorAll("button")).at(-1);
+  const twiceBtn = Array.from(btnList).filter((btn) => {
+    return btn.textContent.trim() === "×2";
+  })[0];
   // '全部'按钮
-  const BothBtn = Array.from(inputList[1].querySelectorAll("button")).at(-1);
+  const BothBtn = Array.from(btnList).filter((btn) => {
+    if (btn.textContent.trim() === "全部" || btn.textContent.trim() === "All")
+      return true;
+  })[0];
   // 发布购买订单的按钮
   const postBtn = document.querySelector(
     '[class*="Modal_modal"] [class*=MarketplacePanel_postButtonContainer] button'
@@ -258,8 +322,14 @@ async function modalProcessor(isBuy) {
   // 如果系购买则加价，否则减价
   if (isBuy) {
     twiceBtn.click();
+    if (postBtn.className.includes("disabled")) {
+      halfBtn.click();
+    }
   } else {
     halfBtn.click();
+    if (postBtn.className.includes("disabled")) {
+      twiceBtn.click();
+    }
   }
   // 点击所有
   BothBtn.click();
@@ -291,40 +361,68 @@ function startTask() {
 function endTask() {
   worker.terminate();
 }
+
 // 清空仓库
 async function clearStock() {
   // 仓库元素
-  const ele = document.querySelector("[class*=Inventory_items]");
   try {
-    // 点开所有的toolTip
-    for (const item of ele.querySelectorAll("[class*=Item_clickable]")) {
-      item.click();
-    } 
-    // 等待toolTip显示
-    await toolTipShow();
-    const firstTips = document.querySelectorAll(
-      '[class*="MuiTooltip-tooltip"] [class*=Item_amountInputContainer]'
+    // 查找全部商品
+    // 点击第一个
+    const stockEle = document.querySelector("[class*=Inventory_items]");
+    const filterKeys = [
+      "货币",
+      "饮料",
+      "战利品",
+      "Currencies",
+      "Drinks",
+      "Loots",
+    ];
+    // 商品的所有分类
+    const cateCargo = stockEle.querySelectorAll("[class*=Inventory_itemGrid]");
+    // 特定类的商品
+    const specificCargos = Array.from(cateCargo).filter((item) => {
+      // 过滤掉包含特定种类的商品
+      return !filterKeys.includes(
+        item.querySelector("[class*=Inventory_category]").textContent.trim()
+      );
+    });
+    if (specificCargos.length === 0) {
+      // 终止运行
+      return true;
+    }
+    //第一种允许被卖出的商品
+    const cargo = specificCargos[0].querySelector("[class*=Item_clickable]");
+    // 打开菜单
+    cargo.click();
+    // 等待菜单加载
+    await awaitElementLoad(
+      '[class*="MuiTooltip-tooltip"] [class*=Item_actionMenu]'
     );
-    // 查找所有的全部按钮
-    for (let firstTip of firstTips) {
-      // '全部'按钮
-      const bothBtn = Array.from(firstTip.querySelectorAll("button")).at(-1);
-      bothBtn.click();
+    // 点击’去市场‘按钮
+    // 等待市场具体可买卖条目加载
+    for (const btn of document.querySelector("[class*=Item_actionMenu]")
+      .children) {
+      if (
+        btn.textContent.trim() === "View Marketplace" ||
+        btn.textContent.trim() === "前往市场"
+      ) {
+        btn.click();
+      }
     }
-    const sellBtns = document.querySelectorAll("[class*=Button_sell]");
-    // 查找所有的卖出按钮
-    for (let sellBtn of sellBtns) {
-      sellBtn.click();
-      sellBtn.click();
-      // 等待一会才能卖
+    await awaitElementLoad('table[class*="orderBookTable"] tr');
+    // 等待一段时间
+    await new Promise((res) => {
       setTimeout(() => {
-        sellBtn.click();
-      }, 1000);
-    }
+        res();
+      }, 500);
+    });
+    // 卖出商品
+    await modalProcessor(false);
   } catch (error) {
     console.log(error);
-    alert("此页无库存商品!");
   }
+  // 递归执行
+  await clearStock();
 }
 
 // 执行按钮
@@ -337,7 +435,6 @@ Object.defineProperty(statusBtn, "isDanger", {
     return this._isDanger;
   },
   set(isDanger) {
-    console.log("isDanger:" + isDanger);
     // 开始执行
     if (isDanger) startTask();
     // 结束执行
