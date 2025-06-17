@@ -11,12 +11,23 @@
 // ==/UserScript==
 
 (() => {
-  // 月成交量，可写入31组数据
-  const dayList = [
-    10000, 20000, 30000, 40000, 50000, 10000, 20000, 30000, 40000, 50000, 10000,
-  ];
-  // 商品logo
+  // 店铺logo
   const mall_logo = "";
+  // 每月份的成交量，每组可写入31组数据，数字对应月份
+  const monthList = {
+    1: [10000, 20000, 30000, 40000, 100000, 10000, 20000, 30000, 40000],
+    2: [10000, 20000, 30000, 40000, 200000, 10000, 20000, 30000, 40000],
+    3: [10000, 20000, 30000, 40000, 300000, 10000, 20000, 30000, 40000],
+    4: [10000, 20000, 30000, 40000, 400000, 10000, 20000, 30000, 40000],
+    5: [10000, 20000, 30000, 40000, 500000, 10000, 20000, 30000, 40000],
+    6: [10000, 20000, 30000, 40000, 600000, 10000, 20000, 30000, 40000],
+    7: [10000, 20000, 30000, 40000, 700000, 10000, 20000, 30000, 40000],
+    8: [10000, 20000, 30000, 40000, 800000, 10000, 20000, 30000, 40000],
+    9: [10000, 20000, 30000, 40000, 900000, 10000, 20000, 30000, 40000],
+    10: [10000, 20000, 30000, 40000, 1000000, 10000, 20000, 30000, 40000],
+    11: [10000, 20000, 30000, 40000, 1100000, 10000, 20000, 30000, 40000],
+    12: [10000, 20000, 30000, 40000, 1200000, 10000, 20000, 30000, 40000],
+  };
   console.table = () => {};
   console.clear = () => {};
   // 封装本地存储
@@ -40,6 +51,10 @@
       }
     },
   };
+  // 交易信息对应的月份
+  let transactionMonth = 0;
+  // 每月的交易信息列表
+  const transactionInfoList = storage.get("transactionInfoList", {});
   // 由于ssr直接返回了img，需要单独更改店铺logo
   window.addEventListener("load", () => {
     document.querySelector(".avatar img").src = mall_logo;
@@ -69,11 +84,39 @@
         );
         // 修改数据后返回一个新的 Response
         let modifiedData = data;
-        if (storage.get("transactionInfo")) {
-          modifiedData.result = {
-            ...modifiedData.result,
-            ...storage.get("transactionInfo"),
-          };
+        // 如果没有修改过，将返还原来的月份数据
+
+        // 如果不是月份信息，而是天，周等
+        if (JSON.parse(init.body)?.queryType !== 4) {
+          // 如果信息修改过，则共用0月份数据
+          if (transactionInfoList[0]) {
+            modifiedData.result = {
+              ...modifiedData.result,
+              ...transactionInfoList[0],
+            };
+          }
+        }
+        // 如果查看的是月交易量数据
+        if (JSON.parse(init.body)?.queryType === 4) {
+          const date = JSON.parse(init.body)?.queryDate;
+          const month = new Date(date).getMonth() + 1;
+          transactionMonth = month;
+          // 如果有对应月份的编辑信息
+          if (transactionInfoList[transactionMonth]) {
+            modifiedData.result = {
+              ...modifiedData.result,
+              ...transactionInfoList[transactionMonth],
+            };
+          }
+          // 每次请求时都需要处理一次
+          // 交易数据信息编辑
+          handleInfoEdit(
+            awaitElementLoad,
+            '#mf-mms-sycm-container [class*="card_cardWrapper"] [class*="card_cardItem"]',
+            '[class*="card_cardWrapper"]',
+            "transactionInfoList",
+            queryTransInfo
+          );
         }
         // 返回未读的响应体
         return new Response(JSON.stringify(modifiedData), {
@@ -86,6 +129,9 @@
       if (url.includes("/sydney/api/mallTrade/queryMallTradeList")) {
         // 如果查看的是月交易量数据
         if (JSON.parse(init.body)?.queryType === 4) {
+          const date = JSON.parse(init.body)?.queryDate;
+          const month = new Date(date).getMonth() + 1;
+          const dayList = monthList[month];
           // 克隆响应流
           const clonedResponse = response.clone();
           // 读取 JSON 数据
@@ -229,7 +275,8 @@
     // 展示数据的文字被用某种字体加密的
     // 找到spider_font类就好了
     const textList = target.querySelectorAll("span.__spider_font");
-    return {
+    // 需要控制month,防止乱改信息
+    transactionInfoList[transactionMonth] = {
       // 成交金额
       payOrdrAmt: textList[0]?.textContent || "占位符",
       // 成交金额百分比
@@ -275,6 +322,7 @@
       // 平均访客价值百分比
       uvCfmValPct: textList[19]?.textContent || "占位符",
     };
+    return transactionInfoList;
   }
   // 查询店铺信息
   function queryShopInfo(target) {
@@ -351,7 +399,7 @@
       awaitElementLoad,
       '#mf-mms-sycm-container [class*="card_cardWrapper"] [class*="card_cardItem"]',
       '[class*="card_cardWrapper"]',
-      "transactionInfo",
+      "transactionInfoList",
       queryTransInfo
     );
   }
