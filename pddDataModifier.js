@@ -6,7 +6,7 @@
 // @match       https://mms.pinduoduo.com/*
 // @grant       none
 // @version     1.0
-// @rut-at      document-start
+// @run-at      document-start
 // @description 拼多多后台信息修改
 // ==/UserScript==
 
@@ -70,7 +70,6 @@
         // 修改数据后返回一个新的 Response
         let modifiedData = data;
         if (storage.get("transactionInfo")) {
-          console.log(123);
           modifiedData.result = {
             ...modifiedData.result,
             ...storage.get("transactionInfo"),
@@ -181,13 +180,24 @@
   }
   // 查询统计时间
   function queryDateInfo(target) {
-    const selfValue = target?._firstChild?.nodeValue;
-    const publicValue = target.textContent;
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Node.prototype,
+      "firstChild"
+    );
+    // 修改前还原descriptor
+    Object.defineProperty(target, "firstChild", descriptor);
+    const privateValue = target.firstChild.nodeValue;
+    // 修改后继续拦截修改前还原descriptor
+    Object.defineProperty(target, "firstChild", {
+      get() {
+        return document.createTextNode("Aloha");
+      },
+      configurable: true,
+    });
     return {
       // 只有自己才能修改‘textContent‘（实际触发输入事件被修改的应该是textNode.nodeValue
-      // 详细hack过程见handleDateRender
-      // 确保第一次持久化数据
-      date: selfValue ? selfValue : publicValue,
+      // 另一部分hack过程见handleDateRender
+      date: privateValue,
     };
   }
   // 单独处理统计时间的渲染
@@ -196,26 +206,22 @@
     if (storage.get("statisticTime")) {
       document.querySelector(selector).firstChild.nodeValue =
         storage.get("statisticTime").date;
-      //将firstChild私有化，两者引用的是同一个dom
-      document.querySelector(selector)._firstChild =
-        document.querySelector(selector).firstChild;
-      // 劫持react更新文字内容的两种方式
+
+      // 劫持react更新文字节点的两种方式
       // 劫持firstChild防止react获取textnode，更新nodValue
-      try {
-        Object.defineProperty(document.querySelector(selector), "firstChild", {
-          get() {
-            return document.createTextNode("Aloha");
-          },
-        });
-        // 劫持textContent防止react设置span.textContent
-        Object.defineProperty(document.querySelector(selector), "textContent", {
-          set(value) {
-            console.log(value);
-          },
-        });
-      } catch (error) {
-        // 接收redefine报错
-      }
+      Object.defineProperty(document.querySelector(selector), "firstChild", {
+        get() {
+          return document.createTextNode("Aloha");
+        },
+        configurable: true,
+      });
+      // 劫持textContent防止react设置span.textContent
+      Object.defineProperty(document.querySelector(selector), "textContent", {
+        set(value) {
+          console.log(value);
+        },
+        configurable: true,
+      });
     }
   }
   // 查询交易信息
@@ -237,7 +243,9 @@
       // 成交买家数百分比
       payOrdrUsrCntPct: textList[5]?.textContent || "占位符",
       // 成交转换率
-      payUvRto: textList[6]?.textContent || "占位符",
+      payUvRto: textList[6]?.textContent
+        ? textList[6]?.textContent + "%"
+        : "占位符%",
       // 成交转化率百分比
       payUvRtoPct: textList[7]?.textContent || "占位符",
       // 客单价
@@ -245,7 +253,9 @@
       // 客单价百分比
       payOrdrAupPct: textList[9]?.textContent || "占位符",
       // 成交老买家占比
-      rpayUsrRtoDth: textList[10]?.textContent || "占位符",
+      rpayUsrRtoDth: textList[10]?.textContent
+        ? textList[10]?.textContent + "%"
+        : "占位符%",
       // 成交老买家占比百分比
       rpayUsrRtoDthPct: textList[11]?.textContent || "占位符",
       // 店铺关注数
