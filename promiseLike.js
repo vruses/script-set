@@ -34,8 +34,7 @@ class PromiseLike {
         this.state = "fulfilled";
         this.value = value;
         this.onFulfilledCallbacks.forEach((callback) => {
-          // 保证访问值得一致性
-          callback(this.value);
+          callback();
         });
         console.log("状态变为:", this.state, "结果:", this.value);
       } else {
@@ -48,6 +47,9 @@ class PromiseLike {
       if (this.state === "pending") {
         this.state = "rejected";
         this.reason = reason;
+        this.onRejectedCallbacks.forEach((callback) => {
+          callback();
+        });
         console.log(this.reason);
         console.log("状态变为:", this.state, "结果:", this.reason);
       } else {
@@ -58,29 +60,77 @@ class PromiseLike {
     try {
       executor(resolve, reject);
     } catch (error) {
-      console.error(`Uncaught (in promise)`,`${this.reason}`);
+      console.error(`Uncaught (in promise)`, `${this.reason}`);
     }
   }
 
-  then(onFulfilled,onRejected) {
-    // 可能传入非函数
+  // 首先需要传入函数,然后看情况执行这个函数
+  // 其次返回一个promise<result>,result是函数执行的结果
+  // TODO:then实现链式调用
+  then(onFulfilled, onRejected) {
     // 不同state做出不同行为
+    // 避免产生副作用一般会暂存onFul和onRej
+    // 回调执行过程中报错则reject
+
+    // 确保onFulfilled和onRejected是函数
+    const realOnFulfilled =
+      typeof onFulfilled === "function" ? onFulfilled : (value) => value; // 值穿透
+
+    const realOnRejected =
+      typeof onRejected === "function"
+        ? onRejected
+        : (reason) => {
+            throw reason;
+          }; // 错误穿透
     if (this.state === "fulfilled") {
-      onFulfilled(this.value);
+      return new PromiseLike((resolve, reject) => {
+        try {
+          resolve(realOnFulfilled(this.value));
+        } catch (error) {
+          reject(error);
+        }
+      });
     } else if (this.state === "rejected") {
-      onRejected(this.reason);
+      return new PromiseLike((_resolve, reject) => {
+        try {
+          reject(realOnRejected(this.reason));
+        } catch (error) {
+          reject(error);
+        }
+      });
     } else {
-      this.onFulfilledCallbacks.push(executor);
-      this.onRejectedCallbacks.push(executor);
+      this.onFulfilledCallbacks.push(() => {
+        try {
+          realOnFulfilled(this.value);
+        } catch (error) {}
+      });
+      this.onRejectedCallbacks.push(() => {
+        try {
+          realOnRejected(this.value);
+        } catch (error) {}
+      });
     }
   }
 }
-const promise_lik2 = new PromiseLike((res, rej) => {
+const promise_like2 = new PromiseLike((res, rej) => {
   setTimeout(() => {
-    res(123);
+    // res(123);
     rej(321);
   }, 2000);
-}).then(res=>{
-  console.log('then=>',res)
 });
-console.log(promise_lik2);
+promise_like2.then(
+  (res) => {
+    console.log("then=>", res);
+  },
+  (reason) => {
+    console.log(reason);
+  }
+);
+// .then((res) => {
+//   console.log("then=>", 456);
+// });
+// console.log(promise_lik2);
+// promise_lik2.then((res) => {
+//   console.log("then=>", 456);
+// })
+console.log(promise_like2);
