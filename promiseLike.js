@@ -108,20 +108,19 @@ class PromiseLike {
             then.call(
               x,
               (y) => {
-                if (!signal) {
-                  resolvePromise(promise, y, resolve, reject);
-                }
+                if (!signal) resolvePromise(promise, y, resolve, reject);
+
                 signal = true;
               },
               (r) => {
-                if (!signal) {
-                  reject(r);
-                }
+                if (!signal) reject(r);
+
                 signal = true;
               }
             );
           } catch (error) {
-            reject(error);
+            if (!signal) reject(error);
+            signal = true;
           }
         } else {
           resolve(x);
