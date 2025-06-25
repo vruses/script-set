@@ -36,9 +36,6 @@ class PromiseLike {
         this.onFulfilledCallbacks.forEach((callback) => {
           callback();
         });
-        console.log("状态变为:", this.state, "结果:", this.value);
-      } else {
-        console.log("状态已锁定，无法从", this.state, "变为 fulfilled");
       }
     };
 
@@ -50,23 +47,21 @@ class PromiseLike {
         this.onRejectedCallbacks.forEach((callback) => {
           callback();
         });
-        console.log(this.reason);
-        console.log("状态变为:", this.state, "结果:", this.reason);
-      } else {
-        console.log("状态已锁定，无法从", this.state, "变为 rejected");
       }
     };
 
     try {
       executor(resolve, reject);
     } catch (error) {
-      console.error(`Uncaught (in promise)`, `${this.reason}`);
+      reject(error);
+      console.error(`Uncaught (in promise)`, error);
     }
   }
 
   // 首先需要传入函数,然后看情况执行这个函数
   // 其次返回一个promise<result>,result是函数执行的结果
   // TODO:then实现链式调用
+  // 注意resolvePromise传入resolve函数this的指向
   then(onFulfilled, onRejected) {
     // 不同state做出不同行为
     // 避免产生副作用一般会暂存onFul和onRej
@@ -82,55 +77,113 @@ class PromiseLike {
         : (reason) => {
             throw reason;
           }; // 错误穿透
+
+    const resolvePromise = (promise, x, resolve, reject) => {
+      // 避免循环引用
+      if (x === promise) {
+        // 抛出错误方便打印
+        throw new TypeError("Chaining cycle detected for promise #<Promise>");
+      }
+      //  如果 x 为 Promise ，则使 Promise 接受 x 的状态
+      if (x instanceof PromiseLike) {
+        x.then((y) => {
+          resolvePromise(promise, y, resolve, reject);
+        }, reject);
+      }
+      if ((typeof x === "object" && x !== null) || typeof x === "function") {
+        let then = null;
+        try {
+          // 访问getter可能会出错
+          then = x.then;
+        } catch (error) {
+          reject(error);
+          console.error(`Uncaught (in promise)`, error);
+        }
+        if (typeof then === "function") {
+          // 如果 resolve 和 reject 均被调用
+          // 或者被同一参数调用了多次，则优先采用首次调用并忽略剩下的调用
+          let signal = false;
+          try {
+            // 前边已经访问过一次then的getter了，为避免副作用call调用缓存后的then
+            then.call(
+              x,
+              (y) => {
+                if (!signal) {
+                  resolvePromise(promise, y, resolve, reject);
+                }
+                signal = true;
+              },
+              (r) => {
+                if (!signal) {
+                  reject(r);
+                }
+                signal = true;
+              }
+            );
+          } catch (error) {
+            reject(error);
+          }
+        } else {
+          resolve(x);
+        }
+      } else {
+        resolve(x);
+      }
+    };
     if (this.state === "fulfilled") {
-      return new PromiseLike((resolve, reject) => {
-        try {
-          resolve(realOnFulfilled(this.value));
-        } catch (error) {
-          reject(error);
-        }
+      const promise2 = new PromiseLike((resolve, reject) => {
+        queueMicrotask(() => {
+          try {
+            const x = realOnFulfilled(this.value);
+            resolvePromise(promise2, x, resolve, reject);
+          } catch (error) {
+            reject(error);
+            console.error(`Uncaught (in promise)`, error);
+          }
+        });
       });
-    } else if (this.state === "rejected") {
-      return new PromiseLike((_resolve, reject) => {
-        try {
-          reject(realOnRejected(this.reason));
-        } catch (error) {
-          reject(error);
-        }
+      return promise2;
+    }
+    if (this.state === "rejected") {
+      const promise2 = new PromiseLike((resolve, reject) => {
+        queueMicrotask(() => {
+          try {
+            const x = realOnRejected(this.reason);
+            resolvePromise(promise2, x, resolve, reject);
+          } catch (error) {
+            reject(error);
+            console.error(`Uncaught (in promise)`, error);
+          }
+        });
       });
-    } else {
-      this.onFulfilledCallbacks.push(() => {
-        try {
-          realOnFulfilled(this.value);
-        } catch (error) {}
+      return promise2;
+    }
+    if (this.state === "pending") {
+      const promise2 = new PromiseLike((resolve, reject) => {
+        this.onFulfilledCallbacks.push(() => {
+          queueMicrotask(() => {
+            try {
+              const x = realOnFulfilled(this.value);
+              resolvePromise(promise2, x, resolve, reject);
+            } catch (error) {
+              reject(error);
+              console.error(`Uncaught (in promise)`, error);
+            }
+          });
+        });
+        this.onRejectedCallbacks.push(() => {
+          queueMicrotask(() => {
+            try {
+              const x = realOnRejected(this.reason);
+              resolvePromise(promise2, x, resolve, reject);
+            } catch (error) {
+              reject(error);
+              console.error(`Uncaught (in promise)`, error);
+            }
+          });
+        });
       });
-      this.onRejectedCallbacks.push(() => {
-        try {
-          realOnRejected(this.value);
-        } catch (error) {}
-      });
+      return promise2;
     }
   }
 }
-const promise_like2 = new PromiseLike((res, rej) => {
-  setTimeout(() => {
-    // res(123);
-    rej(321);
-  }, 2000);
-});
-promise_like2.then(
-  (res) => {
-    console.log("then=>", res);
-  },
-  (reason) => {
-    console.log(reason);
-  }
-);
-// .then((res) => {
-//   console.log("then=>", 456);
-// });
-// console.log(promise_lik2);
-// promise_lik2.then((res) => {
-//   console.log("then=>", 456);
-// })
-console.log(promise_like2);
