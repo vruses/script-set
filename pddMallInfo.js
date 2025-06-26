@@ -38,15 +38,6 @@
     },
   };
   function main() {
-    // main可省略，在fetch里完成
-    // 处理店铺基本信息编辑
-    handleInfoEdit(
-      awaitElementLoad,
-      "[class*='content_basicWrapper'] [class*='ItemWrap_item'] div",
-      "[class*='content_basicWrapper']",
-      "mallBasicInfo",
-      queryMallBasicInfo
-    );
     // 处理店铺主体信息编辑
     handleInfoEdit(awaitElementLoad, "", "", queryMallSubjectInfo);
   }
@@ -64,18 +55,19 @@
     return originalFetch.call(this, input, init).then(async (response) => {
       // 店铺基本信息请求
       if (url.includes("/earth/api/mallInfo/queryFinalCredentialNew")) {
-        const clonedResponse = response.clone();
-        const data = await clonedResponse.json();
-        let modifiedData = data;
-
-        // 替换修改后的店铺基本信息
-        modifiedData = replaceMallBasicInfo(modifiedData);
-
-        return new Response(JSON.stringify(modifiedData), {
-          status: response.status,
-          statusText: response.statusText,
-          headers: response.headers,
-        });
+        // 处理店铺基本信息编辑
+        handleInfoEdit(
+          awaitElementLoad,
+          "[class*='content_basicWrapper'] [class*='ItemWrap_item'] div",
+          "[class*='content_basicWrapper']",
+          "mallBasicInfo",
+          queryMallBasicInfo
+        );
+        const newResponse = await replaceResponse(
+          response,
+          replaceMallBasicInfo
+        );
+        return newResponse;
       }
       return response;
     });
@@ -89,6 +81,21 @@
     }
     return originalCall.apply(this, args);
   };
+  // 修改响应
+  async function replaceResponse(response, dataHandler) {
+    console.log(response);
+    const clonedResponse = response.clone();
+    const data = await clonedResponse.json();
+    let modifiedData = data;
+    // 修改信息
+    modifiedData = dataHandler(modifiedData);
+    console.log(modifiedData);
+    return new Response(JSON.stringify(modifiedData), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  }
 
   // 等待元素加载
   async function awaitElementLoad(selector, timeout = 5000, interval = 100) {
