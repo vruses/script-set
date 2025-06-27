@@ -38,11 +38,6 @@
       }
     },
   };
-  function main() {
-    // 处理店铺主体信息编辑
-    handleInfoEdit(awaitElementLoad, "", "", queryMallMainInfo);
-  }
-  main();
   const originalFetch = window.fetch;
   window.fetch = function (input, init = {}) {
     let url = "";
