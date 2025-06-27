@@ -15,6 +15,7 @@
   const mallLogo = "";
   // 营业执照
   const businessLicenseImgUrl = "";
+
   console.table = () => {};
   console.clear = () => {};
   // 封装本地存储
@@ -39,7 +40,7 @@
   };
   function main() {
     // 处理店铺主体信息编辑
-    handleInfoEdit(awaitElementLoad, "", "", queryMallSubjectInfo);
+    handleInfoEdit(awaitElementLoad, "", "", queryMallMainInfo);
   }
   main();
   const originalFetch = window.fetch;
@@ -53,7 +54,7 @@
 
     // 调用原始 fetch
     return originalFetch.call(this, input, init).then(async (response) => {
-      // 店铺基本信息请求
+      // 店铺基本信息和主体信息请求
       if (url.includes("/earth/api/mallInfo/queryFinalCredentialNew")) {
         // 处理店铺基本信息编辑
         handleInfoEdit(
@@ -63,11 +64,25 @@
           "mallBasicInfo",
           queryMallBasicInfo
         );
-        const newResponse = await replaceResponse(
+        // 处理店铺主题信息编辑（这两信息用的同一个请求，只能放一块处理）
+        handleInfoEdit(
+          awaitElementLoad,
+          ".mall-info-wrap .info-part .content",
+          ".mall-info-main-wrapper",
+          "mallMainInfo",
+          queryMallMainInfo
+        );
+        //返回修改店铺基本信息后的请求
+        const newResponseWithBasicInfoChanged = await replaceResponse(
           response,
           replaceMallBasicInfo
         );
-        return newResponse;
+        // 返回修改店铺主题信息后的请求
+        const newResponseWithMainInfoChanged = await replaceResponse(
+          newResponseWithBasicInfoChanged,
+          replaceMallMainInfo
+        );
+        return newResponseWithMainInfoChanged;
       }
       return response;
     });
@@ -83,13 +98,11 @@
   };
   // 修改响应
   async function replaceResponse(response, dataHandler) {
-    console.log(response);
     const clonedResponse = response.clone();
     const data = await clonedResponse.json();
     let modifiedData = data;
     // 修改信息
     modifiedData = dataHandler(modifiedData);
-    console.log(modifiedData);
     return new Response(JSON.stringify(modifiedData), {
       status: response.status,
       statusText: response.statusText,
@@ -166,9 +179,10 @@
 
     return {
       mallInfo: {
-        id: infoList[0],
+        id: +infoList[0],
         mallName: infoList[1],
         mallDesc: infoList[8],
+        // 全局变量里获取
         logo: mallLogo,
         yunyingUserName: infoList[5],
         staple: [infoList[4]],
@@ -179,8 +193,38 @@
     };
   }
 
-  // 查询店铺主题信息
-  function queryMallSubjectInfo() {}
+  // 查询店铺主体信息
+  function queryMallMainInfo(target) {
+    const infoEleList = target.querySelectorAll(".info-part .content");
+    const infoList = Array.from(infoEleList).map((element) => {
+      return element.textContent;
+    });
+    return {
+      personal: {
+        mallName: infoList[0],
+
+        operatorName: infoList[1],
+        idCardNumber: infoList[2],
+        idCardExpiryTime: infoList[3],
+      },
+      enterprise: {
+        legalRepresentativeName: infoList[5],
+        legalRepresentativeIdcardNumber: infoList[6],
+        idCardEndTime: infoList[7],
+        legalRepresentativeEmail: infoList[8],
+        legalRepresentativeMobile: infoList[9],
+        companyName: infoList[13],
+        socialCreditUnicode: infoList[14],
+        companyType: infoList[15],
+        companyRegisterState: infoList[16],
+        businessScope: infoList[17],
+        companyRegisterAddress: infoList[18],
+        companyAddress: infoList[19],
+        // 此字段由全局变量返回，注意后端返回的typo
+        businessLicenceImgUrl: businessLicenseImgUrl,
+      },
+    };
+  }
 
   // 替换fetch的店铺基本信息response
   function replaceMallBasicInfo(data) {
@@ -193,6 +237,23 @@
     data.result.queryDetailResult = {
       ...data.result.queryDetailResult,
       ...mallBasicInfo.queryDetailResult,
+    };
+    return data;
+  }
+
+  // 替换fetch的店铺主主体信息response
+  function replaceMallMainInfo(data) {
+    const queryDetailResult = storage.get("mallMainInfo");
+    if (!queryDetailResult) return data;
+    // 修改主体信息和管理人信息
+    data.result.queryDetailResult = {
+      ...data.result.queryDetailResult,
+      ...queryDetailResult.personal,
+    };
+    // 修改企业信息
+    data.result.queryDetailResult.enterprise = {
+      ...data.result.queryDetailResult.enterprise,
+      ...queryDetailResult.enterprise,
     };
     return data;
   }
