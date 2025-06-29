@@ -11,6 +11,29 @@
 // ==/UserScript==
 
 (() => {
+  // 在这里添加数个不同的订单缩略图
+  const thumb_urls = {
+    1: "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
+    2: "",
+    3: "",
+    // ...
+  };
+
+  /*   复用缩略图，下面的两个数组分别用于控制 待发货的订单 和 已发货的订单 的缩略图列表显示和显示顺序：
+  第1个订单的缩略图用上方第1个链接
+  第2个订单的缩略图用上方第2个链接
+  第3个订单的缩略图用上方第3个链接...
+  总共20个链接，可自行调整顺序和增减缩略图链接 */
+
+  // 待发货的订单缩略图
+  const pendingThumbDisplayHolder = [
+    1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
+  ];
+  // 已发货的订单缩略图
+  const shippedThumbDisplayHolder = [
+    1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
+  ];
+
   console.table = () => {};
   console.clear = () => {};
   // 封装本地存储
@@ -213,6 +236,13 @@
       ?.querySelectorAll("tr td")[7]
       ?.querySelectorAll("style")[1]
       ?.nextSibling?.nodeValue?.split(" ");
+    const len = target
+      ?.querySelectorAll("tr td")[2]
+      ?.querySelectorAll("style").length;
+    // 商品规格
+    const spec = target
+      ?.querySelectorAll("tr td")[2]
+      ?.querySelectorAll("style")[len - 1]?.nextSibling?.nodeValue;
     const pageItem = {
       order_sn:
         target?.querySelector("tr")?.querySelectorAll("span")[2]?.lastChild
@@ -224,9 +254,8 @@
       goods_id:
         +target?.querySelectorAll("tr td")[2]?.querySelector("p")?.lastChild
           ?.nodeValue ?? "占位符",
-      spec:
-        target?.querySelectorAll("tr td")[2]?.querySelectorAll("style")[1]
-          ?.nextSibling?.nodeValue ?? "占位符",
+      // 选定后一个style
+      spec: spec ?? "占位符",
       order_status_str:
         target?.querySelectorAll("tr td")[3]?.firstChild?.firstChild
           ?.nodeValue ?? "占位符",
@@ -245,8 +274,7 @@
       nickname:
         target?.querySelectorAll("tr td")[8]?.querySelector("span")
           ?.previousSibling?.nodeValue ?? "占位符",
-      thumb_url:
-        "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
+      thumb_url: "",
     };
     return pageItem;
   }
@@ -274,6 +302,9 @@
         ...data.result.pageItems[index],
         ...pageItem,
       };
+      // 替换缩略图
+      data.result.pageItems[index].thumb_url =
+        thumb_urls[pendingThumbDisplayHolder[index]] ?? "";
     }
     return data;
   }
@@ -307,6 +338,9 @@
         ...data.result.pageItems[index],
         ...pageItem,
       };
+      // 替换缩略图
+      data.result.pageItems[index].thumb_url =
+        thumb_urls[shippedThumbDisplayHolder[index]] ?? "";
     }
     return data;
   }
@@ -344,6 +378,4 @@
     data.result.address_pure = item.address_spec;
     return data;
   }
-  // TODO:
-  // receive请求替换
 })();
