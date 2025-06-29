@@ -41,6 +41,9 @@
     }
     return originalCall.apply(this, args);
   };
+
+  // 告诉fetch替换收货人信息是属于待发货还是已发货的
+  let currentStatus = "pending";
   const originalFetch = window.fetch;
   window.fetch = function (input, init = {}) {
     let url = "";
@@ -49,14 +52,13 @@
     } else if (input instanceof Request) {
       url = input.url;
     }
-
     // 调用原始 fetch
     return originalFetch.call(this, input, init).then(async (response) => {
       // 待发货和已发货的订单信息列表
       if (url.includes("/mangkhut/mms/recentOrderList")) {
+        currentStatus = "pending";
         // 待发货的订单信息请求
         if (JSON.parse(init.body)?.orderType === 1) {
-          console.log("pending");
           // 处理待发货订单信息元素的编辑
           handleInfoEdit(
             awaitElementLoad,
@@ -74,7 +76,7 @@
         }
         // 已发货的订单信息请求
         if (JSON.parse(init.body)?.orderType === 2) {
-          console.log("shipped");
+          currentStatus = "shipped";
           // 处理已发货订单信息元素的编辑
           handleInfoEdit(
             awaitElementLoad,
@@ -91,17 +93,39 @@
           return newShippedOrdersResponse;
         }
       }
-
+      // 查看收货人详细信息的请求
+      if (url.includes("/fopen/order/receiver")) {
+        // 传递请求参数payload，用于判断具体的请求发出者
+        const payload = JSON.parse(init.body);
+        if (currentStatus === "pending") {
+          const newPendingReceiverResponse = replaceResponse(
+            response,
+            updatePendingReceiverDetails,
+            payload
+          );
+          // 返回修改后的待发货收货人详细信息响应体
+          return newPendingReceiverResponse;
+        }
+        if (currentStatus === "shipped") {
+          const newShippedReceiverResponse = replaceResponse(
+            response,
+            updateShippedReceiverDetails,
+            payload
+          );
+          // 返回修改后的已发货收货人详细信息响应体
+          return newShippedReceiverResponse;
+        }
+      }
       return response;
     });
   };
-  // 修改响应
-  async function replaceResponse(response, dataHandler) {
+  // 修改响应,增加可选参数请求体
+  async function replaceResponse(response, dataHandler, payload) {
     const clonedResponse = response.clone();
     const data = await clonedResponse.json();
     let modifiedData = data;
     // 修改信息
-    modifiedData = dataHandler(modifiedData);
+    modifiedData = dataHandler(modifiedData, payload);
     return new Response(JSON.stringify(modifiedData), {
       status: response.status,
       statusText: response.statusText,
@@ -181,37 +205,46 @@
   function queryPendingOrderInfo(target) {
     // target===tbody
     // 表结构比较复杂
-    const confirm_date = target.querySelector("tr").querySelectorAll("span")[4]
-      .lastChild.nodeValue;
+    const confirm_date = target
+      ?.querySelector("tr")
+      ?.querySelectorAll("span")[4]?.lastChild?.nodeValue;
     const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
     const address = target
-      .querySelectorAll("tr td")[7]
-      .querySelectorAll("style")[1]
-      .nextSibling.nodeValue.split(" ");
+      ?.querySelectorAll("tr td")[7]
+      ?.querySelectorAll("style")[1]
+      ?.nextSibling?.nodeValue?.split(" ");
     const pageItem = {
-      order_sn: target.querySelector("tr").querySelectorAll("span")[2].lastChild
-        .nodeValue,
+      order_sn:
+        target?.querySelector("tr")?.querySelectorAll("span")[2]?.lastChild
+          ?.nodeValue ?? "占位符",
       confirm_time: timestamp,
-      goods_name: target.querySelectorAll("tr td")[2].querySelector("a")
-        .firstChild.nodeValue,
-      goods_id: +target.querySelectorAll("tr td")[2].querySelector("p")
-        .lastChild.nodeValue,
-      spec: target.querySelectorAll("tr td")[2].querySelectorAll("style")[1]
-        .nextSibling.nodeValue,
+      goods_name:
+        target?.querySelectorAll("tr td")[2]?.querySelector("a").firstChild
+          ?.nodeValue ?? "占位符",
+      goods_id:
+        +target?.querySelectorAll("tr td")[2]?.querySelector("p")?.lastChild
+          ?.nodeValue ?? "占位符",
+      spec:
+        target?.querySelectorAll("tr td")[2]?.querySelectorAll("style")[1]
+          ?.nextSibling?.nodeValue ?? "占位符",
       order_status_str:
-        target.querySelectorAll("tr td")[3].firstChild.firstChild.nodeValue,
-      goods_number: +target.querySelectorAll("tr td")[4].textContent,
-      goods_amount: +target.querySelectorAll("tr td")[5].textContent * 100,
-      order_amount: +target.querySelectorAll("tr td")[6].textContent * 100,
-      receive_name: target
-        .querySelectorAll("tr td")[7]
-        .querySelectorAll("style")[0].nextSibling.firstChild.nodeValue,
-      province_name: address[0],
-      city_name: address[1],
-      district_name: address[2],
-      address_spec: address[3],
-      nickname: target.querySelectorAll("tr td")[8].querySelector("span")
-        .previousSibling.nodeValue,
+        target?.querySelectorAll("tr td")[3]?.firstChild?.firstChild
+          ?.nodeValue ?? "占位符",
+      goods_number: +target?.querySelectorAll("tr td")[4]?.textContent ?? 0,
+      goods_amount:
+        +target?.querySelectorAll("tr td")[5]?.textContent * 100 ?? 0,
+      order_amount:
+        +target?.querySelectorAll("tr td")[6]?.textContent * 100 ?? 0,
+      receive_name:
+        target?.querySelectorAll("tr td")[7]?.querySelectorAll("style")[0]
+          ?.nextSibling?.firstChild?.nodeValue ?? "占位符",
+      province_name: address[0] ?? "占位符",
+      city_name: address[1] ?? "占位符",
+      district_name: address[2] ?? "占位符",
+      address_spec: address[3] ?? "占位符",
+      nickname:
+        target?.querySelectorAll("tr td")[8]?.querySelector("span")
+          ?.previousSibling?.nodeValue ?? "占位符",
       thumb_url:
         "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
     };
@@ -275,6 +308,40 @@
         ...pageItem,
       };
     }
+    return data;
+  }
+
+  // 替换fetch的待发货的收货人的详细信息
+  function updatePendingReceiverDetails(data, payload) {
+    const order_sn = payload?.order_sn;
+    const pageItems = storage.get("pendingOrders");
+    if (!pageItems) return data;
+    // 匹配订单编码
+    const item = pageItems.filter((value) => {
+      return value.order_sn === order_sn;
+    })[0];
+    data.result.name_pure = item.receive_name;
+    data.result.province = item.province_name;
+    data.result.city = item.city_name;
+    data.result.district = item.district_name;
+    data.result.address_pure = item.address_spec;
+    return data;
+  }
+
+  // 替换fetch的已发货的收货人的详细信息
+  function updateShippedReceiverDetails(data, payload) {
+    const order_sn = payload?.order_sn;
+    const pageItems = storage.get("shippedOrders");
+    if (!pageItems) return data;
+    // 匹配订单编码
+    const item = pageItems.filter((value) => {
+      return value.order_sn === order_sn;
+    })[0];
+    data.result.name_pure = item.receive_name;
+    data.result.province = item.province_name;
+    data.result.city = item.city_name;
+    data.result.district = item.district_name;
+    data.result.address_pure = item.address_spec;
     return data;
   }
   // TODO:
