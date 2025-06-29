@@ -56,6 +56,7 @@
       if (url.includes("/mangkhut/mms/recentOrderList")) {
         // 待发货的订单信息请求
         if (JSON.parse(init.body)?.orderType === 1) {
+          console.log("pending");
           // 处理待发货订单信息元素的编辑
           handleInfoEdit(
             awaitElementLoad,
@@ -72,7 +73,22 @@
           return newPendingOrdersResponse;
         }
         // 已发货的订单信息请求
-        if (JSON.parse(init.body)?.orderType === 0) {
+        if (JSON.parse(init.body)?.orderType === 2) {
+          console.log("shipped");
+          // 处理已发货订单信息元素的编辑
+          handleInfoEdit(
+            awaitElementLoad,
+            "[class*='TB_innerMiddle'] table tbody",
+            "[class*='TB_innerMiddle']",
+            "shippedOrders",
+            queryShippedOrders
+          );
+          // 返回修改后的待发货订单信息响应体
+          const newShippedOrdersResponse = replaceResponse(
+            response,
+            updateShippedOrders
+          );
+          return newShippedOrdersResponse;
         }
       }
 
@@ -137,12 +153,18 @@
     // 获取元素信息
     const ele = document.querySelector(selector);
     ele.contentEditable = "true";
-    ele.addEventListener("input", function () {
+    // 因为待发货和已发货切换后元素容器不变，在容器上绑定回调函数引用避免监听器重复绑定
+    if (ele._inputCallback) {
+      ele.removeEventListener("input", ele._inputCallback);
+    }
+    const callback = function () {
       // 获取数据
-      const data = queryFunc(this);
+      const data = queryFunc(ele);
       // 本地存储数据
       storage.set(storageKey, data);
-    });
+    };
+    ele._inputCallback = callback;
+    ele.addEventListener("input", callback);
   }
 
   // 单独处理goodsName文字显示被重置的问题
@@ -155,8 +177,8 @@
       goods_name;
   }
 
-  // 查询具体的订单信息
-  function queryOrderInfo(target) {
+  // 查询具体的待发货订单信息
+  function queryPendingOrderInfo(target) {
     // target===tbody
     // 由于表结构比较复杂，直接递归元素获取所有文字节点
     function getTextNodes(element) {
@@ -174,12 +196,14 @@
     const confirm_date = textNodes[4].nodeValue;
     const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
     const address = textNodes[31].nodeValue.split(" ");
+    console.log(textNodes[23].nodeValue);
     const pageItem = {
       order_sn: textNodes[1].nodeValue,
       confirm_time: timestamp, //textNodes[4]
       goods_name: textNodes[17].nodeValue,
       goods_id: +textNodes[19].nodeValue,
       spec: textNodes[21].nodeValue,
+      order_status_str: textNodes[22].nodeValue,
       goods_number: +textNodes[24].nodeValue,
       goods_amount: +textNodes[25].nodeValue * 100,
       order_amount: +textNodes[26].nodeValue * 100,
@@ -201,14 +225,14 @@
     const pageItems = [];
     // 查询单个订单信息
     for (const orderEle of target.querySelectorAll("tbody")) {
-      const pageItem = queryOrderInfo(orderEle);
+      const pageItem = queryPendingOrderInfo(orderEle);
       // 避免文字显示被重置，依赖对象浅拷贝的副作用
       updateOrderElement(orderEle, pageItem.goods_name);
       pageItems.push(pageItem);
     }
     return pageItems;
   }
-  
+
   // 替换fetch的待发货订单响应数据
   function updatePendingOrders(data) {
     const pageItems = storage.get("pendingOrders");
@@ -222,15 +246,74 @@
     return data;
   }
 
+  // 查询具体的已发货订单信息
+  function queryShippedOrderInfo(target) {
+    // target===tbody
+    // 由于表结构比较复杂，直接递归元素获取所有文字节点
+    function getTextNodes(element) {
+      let textNodes = [];
+      for (let node of element.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== "") {
+          textNodes.push(node);
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+          textNodes.push(...getTextNodes(node));
+        }
+      }
+      return textNodes;
+    }
+    const textNodes = getTextNodes(target);
+    const confirm_date = textNodes[4].nodeValue;
+    const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
+    const address = textNodes[24].nodeValue.split(" ");
+    const pageItem = {
+      order_sn: textNodes[1].nodeValue,
+      confirm_time: timestamp, //textNodes[4]
+      goods_name: textNodes[7].nodeValue,
+      goods_id: +textNodes[9].nodeValue,
+      out_goods_sn: textNodes[12].nodeValue,
+      spec: textNodes[14].nodeValue,
+      order_status_str: textNodes[15].nodeValue,
+      goods_number: +textNodes[17].nodeValue,
+      goods_amount: +textNodes[18].nodeValue * 100,
+      order_amount: +textNodes[19].nodeValue * 100,
+      receive_name: textNodes[21].nodeValue,
+      province_name: address[0],
+      city_name: address[1],
+      district_name: address[2],
+      address_spec: address[3],
+      nickname: textNodes[25].nodeValue,
+      thumb_url:
+        "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
+    };
+    return pageItem;
+  }
+
   // 查询已发货的订单信息
-  function queryShippedOrders(target) {}
+  function queryShippedOrders(target) {
+    // target===TB_innerMiddle
+    const pageItems = [];
+    // 查询单个订单信息
+    for (const orderEle of target.querySelectorAll("tbody")) {
+      const pageItem = queryShippedOrderInfo(orderEle);
+      // 避免文字显示被重置，依赖对象浅拷贝的副作用
+      updateOrderElement(orderEle, pageItem.goods_name);
+      pageItems.push(pageItem);
+    }
+    return pageItems;
+  }
+
   // 替换fetch的已发货订单响应数据
-  function updateShippedOrders(data) {}
+  function updateShippedOrders(data) {
+    const pageItems = storage.get("shippedOrders");
+    if (!pageItems) return data;
+    for (const [index, pageItem] of pageItems.entries()) {
+      data.result.pageItems[index] = {
+        ...data.result.pageItems[index],
+        ...pageItem,
+      };
+    }
+    return data;
+  }
   // TODO:
-  // 等待元素加载
-  // 元素可编辑状态
-  // 监听输入
-  // 查询元素当前文本
-  // 替换所有元素reactInstance(为了方便)上的dataSource(主要解决元素文字显示被重置的问题)
-  // 替换fetch请求响应数据，修改数量以返回数为标准
+  // receive请求替换
 })();
