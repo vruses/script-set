@@ -180,39 +180,38 @@
   // 查询具体的待发货订单信息
   function queryPendingOrderInfo(target) {
     // target===tbody
-    // 由于表结构比较复杂，直接递归元素获取所有文字节点
-    function getTextNodes(element) {
-      let textNodes = [];
-      for (let node of element.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== "") {
-          textNodes.push(node);
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          textNodes.push(...getTextNodes(node));
-        }
-      }
-      return textNodes;
-    }
-    const textNodes = getTextNodes(target);
-    const confirm_date = textNodes[4].nodeValue;
+    // 表结构比较复杂
+    const confirm_date = target.querySelector("tr").querySelectorAll("span")[4]
+      .lastChild.nodeValue;
     const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
-    const address = textNodes[31].nodeValue.split(" ");
-    console.log(textNodes[23].nodeValue);
+    const address = target
+      .querySelectorAll("tr td")[7]
+      .querySelectorAll("style")[1]
+      .nextSibling.nodeValue.split(" ");
     const pageItem = {
-      order_sn: textNodes[1].nodeValue,
-      confirm_time: timestamp, //textNodes[4]
-      goods_name: textNodes[17].nodeValue,
-      goods_id: +textNodes[19].nodeValue,
-      spec: textNodes[21].nodeValue,
-      order_status_str: textNodes[22].nodeValue,
-      goods_number: +textNodes[24].nodeValue,
-      goods_amount: +textNodes[25].nodeValue * 100,
-      order_amount: +textNodes[26].nodeValue * 100,
-      receive_name: textNodes[28].nodeValue,
+      order_sn: target.querySelector("tr").querySelectorAll("span")[2].lastChild
+        .nodeValue,
+      confirm_time: timestamp,
+      goods_name: target.querySelectorAll("tr td")[2].querySelector("a")
+        .firstChild.nodeValue,
+      goods_id: +target.querySelectorAll("tr td")[2].querySelector("p")
+        .lastChild.nodeValue,
+      spec: target.querySelectorAll("tr td")[2].querySelectorAll("style")[1]
+        .nextSibling.nodeValue,
+      order_status_str:
+        target.querySelectorAll("tr td")[3].firstChild.firstChild.nodeValue,
+      goods_number: +target.querySelectorAll("tr td")[4].textContent,
+      goods_amount: +target.querySelectorAll("tr td")[5].textContent * 100,
+      order_amount: +target.querySelectorAll("tr td")[6].textContent * 100,
+      receive_name: target
+        .querySelectorAll("tr td")[7]
+        .querySelectorAll("style")[0].nextSibling.firstChild.nodeValue,
       province_name: address[0],
       city_name: address[1],
       district_name: address[2],
       address_spec: address[3],
-      nickname: textNodes[32].nodeValue,
+      nickname: target.querySelectorAll("tr td")[8].querySelector("span")
+        .previousSibling.nodeValue,
       thumb_url:
         "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
     };
@@ -248,44 +247,8 @@
 
   // 查询具体的已发货订单信息
   function queryShippedOrderInfo(target) {
-    // target===tbody
-    // 由于表结构比较复杂，直接递归元素获取所有文字节点
-    function getTextNodes(element) {
-      let textNodes = [];
-      for (let node of element.childNodes) {
-        if (node.nodeType === Node.TEXT_NODE && node.nodeValue.trim() !== "") {
-          textNodes.push(node);
-        } else if (node.nodeType === Node.ELEMENT_NODE) {
-          textNodes.push(...getTextNodes(node));
-        }
-      }
-      return textNodes;
-    }
-    const textNodes = getTextNodes(target);
-    const confirm_date = textNodes[4].nodeValue;
-    const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
-    const address = textNodes[24].nodeValue.split(" ");
-    const pageItem = {
-      order_sn: textNodes[1].nodeValue,
-      confirm_time: timestamp, //textNodes[4]
-      goods_name: textNodes[7].nodeValue,
-      goods_id: +textNodes[9].nodeValue,
-      out_goods_sn: textNodes[12].nodeValue,
-      spec: textNodes[14].nodeValue,
-      order_status_str: textNodes[15].nodeValue,
-      goods_number: +textNodes[17].nodeValue,
-      goods_amount: +textNodes[18].nodeValue * 100,
-      order_amount: +textNodes[19].nodeValue * 100,
-      receive_name: textNodes[21].nodeValue,
-      province_name: address[0],
-      city_name: address[1],
-      district_name: address[2],
-      address_spec: address[3],
-      nickname: textNodes[25].nodeValue,
-      thumb_url:
-        "https://img.pddpic.com/garner-api-new/5411da8f88be7d8f8ab61733716540a8.jpeg",
-    };
-    return pageItem;
+    // 表结构大差不差，调已发货的逻辑就行
+    return queryPendingOrderInfo(target);
   }
 
   // 查询已发货的订单信息
