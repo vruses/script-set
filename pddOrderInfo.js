@@ -33,7 +33,10 @@
   const shippedThumbDisplayHolder = [
     1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
   ];
-
+  // 历史订单的缩略图（三月前订单）
+  const historyThumbDisplayHolder = [
+    1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2, 3, 1, 2,
+  ];
   console.table = () => {};
   console.clear = () => {};
   // 封装本地存储
@@ -138,6 +141,23 @@
           // 返回修改后的已发货收货人详细信息响应体
           return newShippedReceiverResponse;
         }
+      }
+      // 历史订单请求
+      if (url.includes("/mangkhut/mms/historyOrderList")) {
+        // 处理历史订单信息元素的编辑
+        handleInfoEdit(
+          awaitElementLoad,
+          "[class*='TB_innerMiddle'] table tbody",
+          "[class*='TB_innerMiddle']",
+          "historyOrders",
+          queryHistoryOrders
+        );
+        // 返回修改后的历史订单信息响应体
+        const newHistoryOrdersResponse = replaceResponse(
+          response,
+          updateHistoryOrders
+        );
+        return newHistoryOrdersResponse;
       }
       return response;
     });
@@ -249,7 +269,7 @@
           ?.nodeValue ?? "占位符",
       confirm_time: timestamp,
       goods_name:
-        target?.querySelectorAll("tr td")[2]?.querySelector("a").firstChild
+        target?.querySelectorAll("tr td")[2]?.querySelector("a")?.firstChild
           ?.nodeValue ?? "占位符",
       goods_id:
         +target?.querySelectorAll("tr td")[2]?.querySelector("p")?.lastChild
@@ -376,6 +396,80 @@
     data.result.city = item.city_name;
     data.result.district = item.district_name;
     data.result.address_pure = item.address_spec;
+    return data;
+  }
+
+  // 查询具体的历史订单信息
+  function queryHistoryOrderDetails(target) {
+    // target===tbody
+    // 表结构比较复杂
+    const confirm_date = target
+      ?.querySelector("tr")
+      ?.querySelectorAll("span")[2]?.lastChild?.nodeValue;
+    const timestamp = Math.floor(new Date(confirm_date).getTime() / 1000);
+    const len = target
+      ?.querySelectorAll("tr td")[1]
+      ?.querySelectorAll("style").length;
+    // 商品规格
+    const spec = target
+      ?.querySelectorAll("tr td")[1]
+      ?.querySelectorAll("style")[len - 1]?.nextSibling?.nodeValue;
+    const pageItem = {
+      order_sn:
+        target?.querySelector("tr")?.querySelectorAll("span")[0]?.lastChild
+          ?.nodeValue ?? "占位符",
+      confirm_time: timestamp,
+      goods_name:
+        target?.querySelectorAll("tr td")[1]?.querySelector("a")?.firstChild
+          ?.nodeValue ?? "占位符",
+      goods_id:
+        +target?.querySelectorAll("tr td")[1]?.querySelector("p")?.lastChild
+          ?.nodeValue ?? "占位符",
+      // 选定后一个style
+      spec: spec ?? "占位符",
+      order_status_str:
+        target?.querySelectorAll("tr td")[2]?.firstChild?.firstChild
+          ?.nodeValue ?? "占位符",
+      goods_number: +target?.querySelectorAll("tr td")[3]?.textContent ?? 0,
+      goods_amount:
+        +target?.querySelectorAll("tr td")[4]?.textContent * 100 ?? 0,
+      order_amount:
+        +target?.querySelectorAll("tr td")[5]?.textContent * 100 ?? 0,
+      nickname:
+        target?.querySelectorAll("tr td")[6]?.querySelector("span")
+          ?.previousSibling?.nodeValue ?? "占位符",
+      thumb_url: "",
+    };
+    return pageItem;
+  }
+
+  // 查询历史订单
+  function queryHistoryOrders(target) {
+    // target===TB_innerMiddle
+    const pageItems = [];
+    // 查询单个订单信息
+    for (const orderEle of target.querySelectorAll("tbody")) {
+      const pageItem = queryHistoryOrderDetails(orderEle);
+      // 避免文字显示被重置，依赖对象浅拷贝的副作用
+      updateOrderElement(orderEle, pageItem.goods_name);
+      pageItems.push(pageItem);
+    }
+    return pageItems;
+  }
+
+  // 替换fetch的历史订单响应数据
+  function updateHistoryOrders(data) {
+    const pageItems = storage.get("historyOrders");
+    if (!pageItems) return data;
+    for (const [index, pageItem] of pageItems.entries()) {
+      data.result.pageItems[index] = {
+        ...data.result.pageItems[index],
+        ...pageItem,
+      };
+      // 替换缩略图
+      data.result.pageItems[index].thumb_url =
+        thumb_urls[historyThumbDisplayHolder[index]] ?? "";
+    }
     return data;
   }
 })();
