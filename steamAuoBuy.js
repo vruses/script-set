@@ -611,7 +611,7 @@
           await new Promise((resolve) => {
             const checkDialog = setInterval(() => {
               const checkbox = document.getElementById(
-                "market_buynow_dialog_accept_ssa"
+                "market_buyorder_dialog_accept_ssa"
               );
               if (checkbox) {
                 clearInterval(checkDialog);
@@ -622,7 +622,7 @@
 
           // 检查并选中同意选择框
           const checkbox = document.getElementById(
-            "market_buynow_dialog_accept_ssa"
+            "market_buyorder_dialog_accept_ssa"
           );
           if (checkbox && !checkbox.checked) {
             checkbox.checked = true;
@@ -631,7 +631,7 @@
 
           // 点击购买按钮
           const purchaseButton = document.getElementById(
-            "market_buynow_dialog_purchase"
+            "market_buyorder_dialog_purchase"
           );
           if (purchaseButton) {
             purchaseButton.click();
@@ -641,7 +641,7 @@
             await new Promise((resolve) => setTimeout(resolve, 2000));
 
             const errorText = document.getElementById(
-              "market_buynow_dialog_error_text"
+              "market_buyorder_dialog_error_text"
             );
             if (
               errorText &&
@@ -649,7 +649,7 @@
             ) {
               log("检测到购买限制错误，取消购买");
               const cancelButton = document.getElementById(
-                "market_buynow_dialog_cancel"
+                "market_buyorder_dialog_cancel"
               );
               if (cancelButton) {
                 cancelButton.click();
@@ -661,7 +661,7 @@
               await new Promise((resolve) => {
                 const checkSuccess = setInterval(() => {
                   const viewInventoryButton = document.getElementById(
-                    "market_buynow_dialog_viewinventory"
+                    "market_buyorder_dialog_viewinventory"
                   );
                   if (viewInventoryButton) {
                     clearInterval(checkSuccess);
@@ -674,7 +674,7 @@
               await new Promise((resolve) => setTimeout(resolve, 6 * 1e4));
               // 点击关闭按钮
               const closeButton = document.getElementById(
-                "market_buynow_dialog_close"
+                "market_buyorder_dialog_close"
               );
               if (closeButton) {
                 closeButton.click();
