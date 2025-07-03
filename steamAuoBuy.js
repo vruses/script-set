@@ -540,8 +540,9 @@
 
   // 检查价格是否在预算范围内
   function isPriceInRange(priceStr, maxPrice, exchangeRate) {
+    // 更新价格计算逻辑
     const price = parseFloat(
-      (parseFloat(priceStr.replace("$", "")) * exchangeRate).toFixed(3)
+      (parseFloat(priceStr.split("€")[0]) * exchangeRate).toFixed(3)
     );
     return price <= maxPrice;
   }
@@ -554,7 +555,9 @@
     // 等待页面加载完成
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    const table = document.getElementById("searchResultsRows");
+    const table = document.querySelector(
+      "#market_commodity_forsale_table table"
+    );
     if (!table) {
       log("未找到商品列表，准备处理下一个配置");
 
@@ -577,113 +580,106 @@
       return;
     }
 
-    const items = table.children;
-    log(`找到 ${items.length} 个商品项目`);
-
-    for (let ul of items) {
-      if (!isRunning) {
-        log("检测到停止信号，终止处理");
-        return;
-      }
-
+    const priceElement = document.querySelector(
+      "#market_commodity_forsale"
+    ).lastChild;
+    if (priceElement) {
       // 获取价格
-      const priceElement = ul.querySelector(".market_listing_price_with_fee");
-      if (!priceElement) continue;
       const priceStr = priceElement.textContent.trim();
       log(`检查商品价格: ${priceStr}`);
-
       // 检查价格是否在预算范围内
       if (!isPriceInRange(priceStr, config.price, exchangeRate)) {
         log(`价格 ${priceStr} 超出预算范围，跳过`);
-        continue;
-      }
-
-      log("找到符合条件的商品，尝试购买");
-      // 找到购买按钮并点击
-      const buyButton = ul.querySelector(".market_listing_buy_button a");
-      if (buyButton) {
-        buyButton.click();
-        log("已点击购买按钮，等待弹窗...");
-
-        // 等待购买弹窗出现
-        await new Promise((resolve) => {
-          const checkDialog = setInterval(() => {
-            const checkbox = document.getElementById(
-              "market_buynow_dialog_accept_ssa"
-            );
-            if (checkbox) {
-              clearInterval(checkDialog);
-              resolve();
-            }
-          }, 500);
-        });
-
-        // 检查并选中同意选择框
-        const checkbox = document.getElementById(
-          "market_buynow_dialog_accept_ssa"
-        );
-        if (checkbox && !checkbox.checked) {
-          checkbox.checked = true;
-          log("已选中同意选择框");
+      } else {
+        if (!isRunning) {
+          log("检测到停止信号，终止处理");
+          return;
         }
 
-        // 点击购买按钮
-        const purchaseButton = document.getElementById(
-          "market_buynow_dialog_purchase"
+        log("找到符合条件的商品，尝试购买");
+
+        // 找到购买按钮并点击
+        // 注意第一个buy_button为买第二个为卖
+        const buyButton = document.querySelector(
+          ".market_commodity_buy_button"
         );
-        if (purchaseButton) {
-          purchaseButton.click();
-          log("已点击确认购买按钮，等待结果...");
+        if (buyButton) {
+          buyButton.click();
+          log("已点击购买按钮，等待弹窗...");
 
-          // 等待可能的错误信息
-          await new Promise((resolve) => setTimeout(resolve, 2000));
+          // 等待购买弹窗出现
+          await new Promise((resolve) => {
+            const checkDialog = setInterval(() => {
+              const checkbox = document.getElementById(
+                "market_buynow_dialog_accept_ssa"
+              );
+              if (checkbox) {
+                clearInterval(checkDialog);
+                resolve();
+              }
+            }, 500);
+          });
 
-          const errorText = document.getElementById(
-            "market_buynow_dialog_error_text"
+          // 检查并选中同意选择框
+          const checkbox = document.getElementById(
+            "market_buynow_dialog_accept_ssa"
           );
-          if (errorText && errorText.textContent.includes("您不能购买此物品")) {
-            log("检测到购买限制错误，取消购买");
-            const cancelButton = document.getElementById(
-              "market_buynow_dialog_cancel"
-            );
-            if (cancelButton) {
-              cancelButton.click();
-            }
+          if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+            log("已选中同意选择框");
+          }
 
-            // 点击查询按钮刷新列表
-            log("刷新商品列表...");
-            const refreshButton = document.getElementById(
-              "market_listing_filter_submit"
-            );
-            if (refreshButton) {
-              refreshButton.click();
-              // 等待页面刷新
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-              // 重新处理页面
-              await processPage(config, exchangeRate);
-              return;
-            }
-          } else {
-            // 等待查看库存按钮出现（表明购买成功）
-            await new Promise((resolve) => {
-              const checkSuccess = setInterval(() => {
-                const viewInventoryButton = document.getElementById(
-                  "market_buynow_dialog_viewinventory"
-                );
-                if (viewInventoryButton) {
-                  clearInterval(checkSuccess);
-                  resolve();
-                }
-              }, 500);
-            });
+          // 点击购买按钮
+          const purchaseButton = document.getElementById(
+            "market_buynow_dialog_purchase"
+          );
+          if (purchaseButton) {
+            purchaseButton.click();
+            log("已点击确认购买按钮，等待结果...");
 
-            // 点击关闭按钮
-            const closeButton = document.getElementById(
-              "market_buynow_dialog_close"
+            // 等待可能的错误信息
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
+            const errorText = document.getElementById(
+              "market_buynow_dialog_error_text"
             );
-            if (closeButton) {
-              closeButton.click();
-              log("购买成功，已关闭弹窗");
+            if (
+              errorText &&
+              errorText.textContent.includes("您不能购买此物品")
+            ) {
+              log("检测到购买限制错误，取消购买");
+              const cancelButton = document.getElementById(
+                "market_buynow_dialog_cancel"
+              );
+              if (cancelButton) {
+                cancelButton.click();
+              }
+              // 移除多余逻辑，刷新页面无法进行一些操作
+              location.reload();
+            } else {
+              // 等待查看库存按钮出现（表明购买成功）
+              await new Promise((resolve) => {
+                const checkSuccess = setInterval(() => {
+                  const viewInventoryButton = document.getElementById(
+                    "market_buynow_dialog_viewinventory"
+                  );
+                  if (viewInventoryButton) {
+                    clearInterval(checkSuccess);
+                    resolve();
+                  }
+                }, 500);
+              });
+              // 等待1min，如果购买不成功则跳转到求购
+              log("等待一分钟");
+              await new Promise((resolve) => setTimeout(resolve, 6 * 1e4));
+              // 点击关闭按钮
+              const closeButton = document.getElementById(
+                "market_buynow_dialog_close"
+              );
+              if (closeButton) {
+                closeButton.click();
+                log("购买成功，已关闭弹窗");
+              }
             }
           }
         }
