@@ -13,11 +13,128 @@
 (() => {
   "use strict";
   // 四种请求
-  // 1.刷新价格列表请求；2.订单前的预请求;
+  // 1.刷新价格列表请求；2.订单前的预请求(其实是获取交易税);
   // 3.创建订单请求；4.订单状态请求
   // 仪表盘：控制请求1的频率
-  // 还需要添加汇率设置，及价格的设置，每个链接存储为一组数据
+  // 汇率并不需要设置可以直接获取，只需要设置期望价格expectPrice，每个链接存储为一组数据
 
+  // 封装本地存储
+  const storage = {
+    set(key, value) {
+      try {
+        const data = JSON.stringify(value);
+        localStorage.setItem(key, data);
+      } catch (e) {
+        console.error("Storage Set Error:", e);
+      }
+    },
+    get(key, defaultValue = null) {
+      try {
+        const data = localStorage.getItem(key);
+        return data !== null ? JSON.parse(data) : defaultValue;
+      } catch (e) {
+        console.error("Storage Get Error:", e);
+        return defaultValue;
+      }
+    },
+  };
+
+  // 封装webWorker
+  const workerJs = function () {
+    class TimerManager {
+      constructor() {
+        this.timers = new Map();
+      }
+      set(key, callback, delay) {
+        this.clean(key);
+        const id = setTimeout(() => {
+          callback();
+        }, delay);
+        this.timers.set(key, id);
+      }
+      clean(key) {
+        if (this.timers.has(key)) {
+          clearTimeout(this.timers.get(key));
+          this.timers.delete(key);
+        }
+      }
+      cleanAll() {
+        for (let id of this.timers.values()) {
+          clearTimeout(id);
+        }
+        this.timers.clear();
+      }
+      has(key) {
+        return this.timers.has(key);
+      }
+    }
+    const manager = new TimerManager();
+    // 根据taskName设置定时
+    self.addEventListener("message", function (e) {
+      manager.set(
+        e.data.taskName,
+        () => self.postMessage(e.data.taskName),
+        e.data.time
+      );
+    });
+  };
+
+  workerJs.toString();
+  const blob = new Blob([`(${workerJs})()`], {
+    type: "application/javascript",
+  });
+  const url = URL.createObjectURL(blob);
+  const worker = new Worker(url);
+
+  // 用于判断是否被风控
+  let riskCount = 0;
+  // 用于首次请求获取本页商品id
+  let runOnce = false;
+
+  // XHR响应拦截
+  const originalOpen = XMLHttpRequest.prototype.open;
+  const originalSend = XMLHttpRequest.prototype.send;
+
+  XMLHttpRequest.prototype.open = function (...args) {
+    // 便于在send阶段筛选特定请求
+    this._interceptUrl = args[1];
+    return originalOpen.apply(this, args);
+  };
+
+  XMLHttpRequest.prototype.send = function (body) {
+    const xhr = this;
+    const customOnReadyStateChange = function () {
+      if (xhr.readyState === 4) {
+        if (xhr._interceptUrl.includes("")) {
+          const response = JSON.parse(xhr.responseText);
+          if(checkPriceExpectation()){
+            createBuyOrder()
+          }
+        }
+      }
+
+      if (xhr._originalOnReadyStateChange) {
+        xhr._originalOnReadyStateChange.apply(this, arguments);
+      }
+    };
+    // 防止重复hook
+    if (!xhr._isHooked) {
+      xhr._originalOnReadyStateChange = xhr.onreadystatechange;
+      xhr.onreadystatechange = customOnReadyStateChange;
+      xhr._isHooked = true;
+    }
+
+    return originalSend.apply(this, arguments);
+  };
+
+  // 查询正在销售的商品列表
+  function querySellOrderList() {}
+
+  // 检查当前价格是否符合期望
+  function checkPriceExpectation() {}
+
+  // 创建订单请求
+  function createBuyOrder() {}
   // 思路
   // 按一定频率请求1，同时拦截请求1，先拿到steam自身请求后的item_nameid
   // （因为steam网页还是用的php和jquery,item_nameid不好拿到
@@ -31,7 +148,7 @@
   // 则请求接下来的几个接口
   // 订单前的与请求
   // 以上四种接口的调用函数都可以直接从steam网页上下文直接获取
-  // 测试到接口2不必须，以防万一还是加上
+  // 测试到接口2不必须，以防万一还是加上（其实不是必须的，交易税字段恒为0
   // 测试到接口4不必须，使用接口3返回的提示信息足矣
 
   // 完整的请求执行链为：
@@ -55,5 +172,4 @@
   //   success: 1,
   //   buy_orderid: "7914341128",
   // }
-
 })();
