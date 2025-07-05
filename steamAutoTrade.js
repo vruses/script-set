@@ -252,7 +252,351 @@
     };
   }
 
-  // TODO:准确计时器
+  
+  // 准确定时器类
+  class AccurateTimer {
+    constructor() {
+      this.timers = new Map(); // 存储所有定时器
+      this.nextId = 1; // 定时器ID计数器
+    }
+
+    /**
+     * 创建一个准确的定时器
+     * @param {Function} callback - 回调函数
+     * @param {number} delay - 延迟时间（毫秒）
+     * @param {Object} options - 配置选项
+     * @returns {number} 定时器ID
+     */
+    setTimeout(callback, delay, options = {}) {
+      const {
+        accurate = true, // 是否使用高精度定时
+        maxDrift = 10, // 允许的最大漂移（毫秒）
+        name = null, // 定时器名称（可选）
+      } = options;
+
+      const id = this.nextId++;
+      const startTime = performance.now();
+      const targetTime = startTime + delay;
+
+      const timer = {
+        id,
+        name,
+        callback,
+        delay,
+        startTime,
+        targetTime,
+        accurate,
+        maxDrift,
+        timeoutId: null,
+        cancelled: false,
+        completed: false,
+      };
+
+      if (accurate) {
+        this._createAccurateTimer(timer);
+      } else {
+        timer.timeoutId = setTimeout(() => {
+          if (!timer.cancelled) {
+            timer.completed = true;
+            callback();
+            this.timers.delete(id);
+          }
+        }, delay);
+      }
+
+      this.timers.set(id, timer);
+      return id;
+    }
+
+    /**
+     * 创建准确的定时器
+     */
+    _createAccurateTimer(timer) {
+      const checkTime = () => {
+        if (timer.cancelled) return;
+
+        const currentTime = performance.now();
+        const remaining = timer.targetTime - currentTime;
+
+        if (remaining <= 0) {
+          // 时间到了
+          timer.completed = true;
+          timer.callback();
+          this.timers.delete(timer.id);
+        } else if (remaining <= timer.maxDrift) {
+          // 剩余时间很短，使用setTimeout精确控制
+          timer.timeoutId = setTimeout(() => {
+            if (!timer.cancelled) {
+              timer.completed = true;
+              timer.callback();
+              this.timers.delete(timer.id);
+            }
+          }, Math.max(0, remaining));
+        } else {
+          // 还有较长时间，继续检查
+          timer.timeoutId = setTimeout(checkTime, Math.min(remaining / 2, 100));
+        }
+      };
+
+      checkTime();
+    }
+
+    /**
+     * 创建间隔定时器
+     * @param {Function} callback - 回调函数
+     * @param {number} interval - 间隔时间（毫秒）
+     * @param {Object} options - 配置选项
+     * @returns {number} 定时器ID
+     */
+    setInterval(callback, interval, options = {}) {
+      const {
+        accurate = true,
+        maxDrift = 10,
+        name = null,
+        maxCount = Infinity, // 最大执行次数
+      } = options;
+
+      const id = this.nextId++;
+      const startTime = performance.now();
+
+      const timer = {
+        id,
+        name,
+        callback,
+        interval,
+        startTime,
+        accurate,
+        maxDrift,
+        maxCount,
+        count: 0,
+        timeoutId: null,
+        cancelled: false,
+        nextTime: startTime + interval,
+      };
+
+      if (accurate) {
+        this._createAccurateInterval(timer);
+      } else {
+        timer.timeoutId = setInterval(() => {
+          if (!timer.cancelled && timer.count < timer.maxCount) {
+            timer.count++;
+            callback(timer.count);
+            if (timer.count >= timer.maxCount) {
+              this.clearTimer(id);
+            }
+          }
+        }, interval);
+      }
+
+      this.timers.set(id, timer);
+      return id;
+    }
+
+    /**
+     * 创建准确的间隔定时器
+     */
+    _createAccurateInterval(timer) {
+      const executeNext = () => {
+        if (timer.cancelled || timer.count >= timer.maxCount) {
+          this.timers.delete(timer.id);
+          return;
+        }
+
+        const currentTime = performance.now();
+        const remaining = timer.nextTime - currentTime;
+
+        if (remaining <= 0) {
+          // 执行回调
+          timer.count++;
+          timer.callback(timer.count);
+
+          // 计算下次执行时间，避免漂移累积
+          timer.nextTime = timer.startTime + (timer.count + 1) * timer.interval;
+
+          if (timer.count < timer.maxCount) {
+            executeNext();
+          } else {
+            this.timers.delete(timer.id);
+          }
+        } else if (remaining <= timer.maxDrift) {
+          // 剩余时间很短，使用setTimeout精确控制
+          timer.timeoutId = setTimeout(executeNext, Math.max(0, remaining));
+        } else {
+          // 还有较长时间，继续检查
+          timer.timeoutId = setTimeout(
+            executeNext,
+            Math.min(remaining / 2, 100)
+          );
+        }
+      };
+
+      executeNext();
+    }
+
+    /**
+     * 取消定时器
+     * @param {number} id - 定时器ID
+     * @returns {boolean} 是否成功取消
+     */
+    clearTimer(id) {
+      const timer = this.timers.get(id);
+      if (!timer) return false;
+
+      timer.cancelled = true;
+      if (timer.timeoutId) {
+        clearTimeout(timer.timeoutId);
+      }
+      this.timers.delete(id);
+      return true;
+    }
+
+    /**
+     * 重新启动定时器
+     * @param {number} id - 定时器ID
+     * @param {number} newDelay - 新的延迟时间（可选）
+     * @returns {boolean} 是否成功重启
+     */
+    restartTimer(id, newDelay) {
+      const timer = this.timers.get(id);
+      if (!timer) return false;
+
+      // 取消当前定时器
+      this.clearTimer(id);
+
+      // 重新创建
+      if (timer.interval !== undefined) {
+        // 间隔定时器
+        return this.setInterval(timer.callback, newDelay || timer.interval, {
+          accurate: timer.accurate,
+          maxDrift: timer.maxDrift,
+          name: timer.name,
+          maxCount: timer.maxCount,
+        });
+      } else {
+        // 单次定时器
+        return this.setTimeout(timer.callback, newDelay || timer.delay, {
+          accurate: timer.accurate,
+          maxDrift: timer.maxDrift,
+          name: timer.name,
+        });
+      }
+    }
+
+    /**
+     * 暂停定时器
+     * @param {number} id - 定时器ID
+     * @returns {boolean} 是否成功暂停
+     */
+    pauseTimer(id) {
+      const timer = this.timers.get(id);
+      if (!timer || timer.cancelled) return false;
+
+      timer.pausedAt = performance.now();
+      timer.paused = true;
+
+      if (timer.timeoutId) {
+        clearTimeout(timer.timeoutId);
+        timer.timeoutId = null;
+      }
+
+      return true;
+    }
+
+    /**
+     * 恢复定时器
+     * @param {number} id - 定时器ID
+     * @returns {boolean} 是否成功恢复
+     */
+    resumeTimer(id) {
+      const timer = this.timers.get(id);
+      if (!timer || !timer.paused) return false;
+
+      const pausedDuration = performance.now() - timer.pausedAt;
+
+      if (timer.interval !== undefined) {
+        // 间隔定时器
+        timer.nextTime += pausedDuration;
+        timer.paused = false;
+        this._createAccurateInterval(timer);
+      } else {
+        // 单次定时器
+        timer.targetTime += pausedDuration;
+        timer.paused = false;
+        this._createAccurateTimer(timer);
+      }
+
+      return true;
+    }
+
+    /**
+     * 获取定时器信息
+     * @param {number} id - 定时器ID
+     * @returns {Object|null} 定时器信息
+     */
+    getTimerInfo(id) {
+      const timer = this.timers.get(id);
+      if (!timer) return null;
+
+      const currentTime = performance.now();
+      const elapsed = currentTime - timer.startTime;
+
+      let remaining = 0;
+      if (timer.interval !== undefined) {
+        remaining = Math.max(0, timer.nextTime - currentTime);
+      } else {
+        remaining = Math.max(0, timer.targetTime - currentTime);
+      }
+
+      return {
+        id: timer.id,
+        name: timer.name,
+        type: timer.interval !== undefined ? "interval" : "timeout",
+        delay: timer.delay || timer.interval,
+        elapsed: Math.round(elapsed),
+        remaining: Math.round(remaining),
+        count: timer.count || 0,
+        maxCount: timer.maxCount || 1,
+        cancelled: timer.cancelled,
+        completed: timer.completed || false,
+        paused: timer.paused || false,
+        accurate: timer.accurate,
+      };
+    }
+
+    /**
+     * 获取所有定时器列表
+     * @returns {Array} 定时器列表
+     */
+    getAllTimers() {
+      return Array.from(this.timers.keys()).map((id) => this.getTimerInfo(id));
+    }
+
+    /**
+     * 清除所有定时器
+     */
+    clearAllTimers() {
+      for (const id of this.timers.keys()) {
+        this.clearTimer(id);
+      }
+    }
+
+    /**
+     * 获取定时器统计信息
+     */
+    getStats() {
+      const timers = this.getAllTimers();
+      return {
+        total: timers.length,
+        running: timers.filter((t) => !t.cancelled && !t.completed && !t.paused)
+          .length,
+        paused: timers.filter((t) => t.paused).length,
+        completed: timers.filter((t) => t.completed).length,
+        cancelled: timers.filter((t) => t.cancelled).length,
+        accurate: timers.filter((t) => t.accurate).length,
+      };
+    }
+  }
+
   //
   // 思路
   // 按一定频率请求1，同时拦截请求1，先拿到steam自身请求后的item_nameid
