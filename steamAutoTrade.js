@@ -94,9 +94,9 @@
             }
             const response = JSON.parse(this.responseText);
             console.log(response);
-            const currentPrice = response?.sell_order_graph?.[0]?.[0];
-            console.log(currentPrice);
-            if (checkPriceExpectation(currentPrice, 3)) {
+            const currentPrice = response?.sell_order_graph?.[0]?.[0] ?? 0;
+            const expectedPrice = storage.get("expectedPrice", 3);
+            if (checkPriceExpectation(currentPrice, expectedPrice)) {
               createBuyOrder();
             }
             orderInfo.riskCount;
@@ -112,6 +112,8 @@
   // 查询正在销售的商品列表
   function querySellOrderList(itemID) {
     console.log("queryOrder=>", itemID);
+    // 调用steam暴露的api方法
+    Market_LoadOrderSpread(itemID);
   }
 
   // 检查当前价格是否符合期望
@@ -249,6 +251,9 @@
       // 简化版本，实际需要从dep中移除effect
     };
   }
+
+  // TODO:准确计时器
+  //
   // 思路
   // 按一定频率请求1，同时拦截请求1，先拿到steam自身请求后的item_nameid
   // （因为steam网页还是用的php和jquery,item_nameid不好拿到
