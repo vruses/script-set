@@ -11,7 +11,6 @@
 // ==/UserScript==
 
 (() => {
-  "use strict";
   // 四种请求
   // 1.刷新价格列表请求；2.订单前的预请求(其实是获取交易税);
   // 3.创建订单请求；4.订单状态请求
@@ -39,90 +38,55 @@
     },
   };
 
-  // 封装webWorker
-  const workerJs = function () {
-    class TimerManager {
-      constructor() {
-        this.timers = new Map();
-      }
-      set(key, callback, delay) {
-        this.clean(key);
-        const id = setTimeout(() => {
-          callback();
-        }, delay);
-        this.timers.set(key, id);
-      }
-      clean(key) {
-        if (this.timers.has(key)) {
-          clearTimeout(this.timers.get(key));
-          this.timers.delete(key);
-        }
-      }
-      cleanAll() {
-        for (let id of this.timers.values()) {
-          clearTimeout(id);
-        }
-        this.timers.clear();
-      }
-      has(key) {
-        return this.timers.has(key);
-      }
-    }
-    const manager = new TimerManager();
-    // 根据taskName设置定时
-    self.addEventListener("message", function (e) {
-      manager.set(
-        e.data.taskName,
-        () => self.postMessage(e.data.taskName),
-        e.data.time
-      );
-    });
-  };
-
-  workerJs.toString();
-  const blob = new Blob([`(${workerJs})()`], {
-    type: "application/javascript",
-  });
-  const url = URL.createObjectURL(blob);
-  const worker = new Worker(url);
-
   // 用于判断是否被风控
   let riskCount = 0;
   // 用于首次请求获取本页商品id
   let runOnce = false;
+  // 用于缓存本页面的商品id
+  let itemID = 0;
 
   // XHR响应拦截
   const originalOpen = XMLHttpRequest.prototype.open;
   const originalSend = XMLHttpRequest.prototype.send;
 
-  XMLHttpRequest.prototype.open = function (...args) {
+  XMLHttpRequest.prototype.open = function (_method, url, ...args) {
     // 便于在send阶段筛选特定请求
-    this._interceptUrl = args[1];
-    return originalOpen.apply(this, args);
+    this._url = url;
+    return originalOpen.apply(this, arguments);
   };
 
   XMLHttpRequest.prototype.send = function (body) {
-    const xhr = this;
-    const customOnReadyStateChange = function () {
-      if (xhr.readyState === 4) {
-        if (xhr._interceptUrl.includes("")) {
-          const response = JSON.parse(xhr.responseText);
-          if(checkPriceExpectation()){
-            createBuyOrder()
+    // 监听状态变化
+    this.addEventListener("readystatechange", function () {
+      if (this.readyState === 4) {
+        // 查询商品列表
+        if (
+          this._url.includes(
+            "https://steamcommunity.com/market/itemordershistogram"
+          )
+        ) {
+          console.log(this.status);
+          // 可能response为空可能为429
+          // 429错误此处捕获不到，需要调用$ajax.error
+          if (this.status === 200) {
+            if (!runOnce) {
+              const params = new URL(this._url).searchParams;
+              itemID = params.get("item_nameid");
+              runOnce = true;
+            }
+            const response = JSON.parse(this.responseText);
+            console.log(response);
+            const currentPrice = response?.sell_order_graph?.[0]?.[0];
+            console.log(currentPrice);
+            if (checkPriceExpectation(currentPrice, 3)) {
+              createBuyOrder();
+            }
+            riskCount = 0;
+            console.log("riskCountReset=>", riskCount);
           }
         }
       }
-
-      if (xhr._originalOnReadyStateChange) {
-        xhr._originalOnReadyStateChange.apply(this, arguments);
-      }
-    };
-    // 防止重复hook
-    if (!xhr._isHooked) {
-      xhr._originalOnReadyStateChange = xhr.onreadystatechange;
-      xhr.onreadystatechange = customOnReadyStateChange;
-      xhr._isHooked = true;
-    }
+    });
 
     return originalSend.apply(this, arguments);
   };
@@ -131,10 +95,14 @@
   function querySellOrderList() {}
 
   // 检查当前价格是否符合期望
-  function checkPriceExpectation() {}
+  function checkPriceExpectation(current, expected) {
+    return current <= expected;
+  }
 
   // 创建订单请求
-  function createBuyOrder() {}
+  function createBuyOrder() {
+    console.log("订单已创建");
+  }
   // 思路
   // 按一定频率请求1，同时拦截请求1，先拿到steam自身请求后的item_nameid
   // （因为steam网页还是用的php和jquery,item_nameid不好拿到
