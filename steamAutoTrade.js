@@ -134,6 +134,45 @@
     console.log("订单已创建");
   }
 
+  // 查询对应url的本地配置
+  function queryUrlSettings(url) {
+    const storageKey = "urlSettings";
+
+    try {
+      const data = storage.get(storageKey, []);
+      const found = data.find((item) => item.url === url);
+
+      return found ? found.settings : null;
+    } catch (error) {
+      console.error("查询配置失败:", error);
+      return null;
+    }
+  }
+
+  // 更新对应url的本地配置
+  function updateUrlSettings(url, newSettings) {
+    const storageKey = "urlSettings";
+    let data = storage.get(storageKey, []);
+
+    const existingIndex = data.findIndex((item) => item.url === url);
+
+    if (existingIndex !== -1) {
+      // 更新现有配置
+      data[existingIndex].settings = {
+        ...data[existingIndex].settings,
+        ...newSettings,
+      };
+    } else {
+      // 新建配置
+      data.push({
+        url: url,
+        settings: newSettings,
+      });
+    }
+    storage.set(storageKey, data);
+    return data;
+  }
+
   // 依赖收集：将当前effect与对象属性关联
   function track(target, key) {
     if (!currentEffect) return;
@@ -1065,19 +1104,63 @@
   const input1 = document.createElement("input-number");
   const input2 = document.createElement("input-number");
   const input3 = document.createElement("input-number");
+  // 三个value先从storage里获取，否则使用默认值
+  // 当前页面的配置项
+  const currentSettings = queryUrlSettings(location.href) ?? {
+    expectedPrice: 0,
+    exchangeRate: 0,
+    queryInterval: 1,
+  };
+  // 各配置项属性对应的响应式对象
+  const expectedPriceOptions = reactive({
+    min: 0,
+    max: 10e8,
+    step: 1,
+    value: currentSettings.expectedPrice,
+  });
+  const exchangeRateOptions = reactive({
+    min: 0,
+    max: 10e8,
+    step: 1,
+    value: currentSettings.exchangeRate,
+  });
   const queryIntervalOptions = reactive({
     min: 0.01,
-    max: 10,
+    max: 10e8,
     step: 1,
-    value: 1,
+    value: currentSettings.queryInterval,
   });
+  input1.props = expectedPriceOptions;
+  input2.props = exchangeRateOptions;
   input3.props = queryIntervalOptions;
 
+  // 变化时更新配置项
+  watch(
+    () => expectedPriceOptions.value,
+    (newValue, _oldValue) => {
+      const currentUrl = location.href;
+      currentSettings.expectedPrice = newValue;
+      // 存储当前页面的期望价格
+      updateUrlSettings(currentUrl, currentSettings);
+    }
+  );
+  watch(
+    () => exchangeRateOptions.value,
+    (newValue, _oldValue) => {
+      const currentUrl = location.href;
+      currentSettings.exchangeRate = newValue;
+      // 存储当前页面的汇率
+      updateUrlSettings(currentUrl, currentSettings);
+    }
+  );
   watch(
     () => queryIntervalOptions.value,
-    (newValue, oldValue) => {
-      console.log("reactiveNew=>", newValue);
-      console.log("reactiveOld=>", oldValue);
+    (newValue, _oldValue) => {
+      const currentUrl = location.href;
+      currentSettings.queryInterval = newValue;
+      // 存储当前页面的查询间隔
+      updateUrlSettings(currentUrl, currentSettings);
+      querySellOrderList(newValue);
     }
   );
   grid.addItems(label1, input1, label2, input2, label3, input3);
