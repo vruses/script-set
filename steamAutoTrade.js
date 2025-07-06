@@ -45,6 +45,7 @@
     itemID: 0, // 商品id
     riskCount: 0, // 计数用于判断是否被风控
   });
+  console.log(orderInfo);
   // 商品id变化时，开始轮询商品列表
   watch(
     () => orderInfo.itemID,
@@ -749,10 +750,12 @@
     #plus;
     constructor() {
       super();
-      this.min = 0.1;
-      this.max = 300;
-      this.step = 0.01;
-      this.value = 1;
+      this.props = {
+        min: 0,
+        max: 1000000000,
+        step: 1,
+        value: 0,
+      };
 
       this.#minus = document.createElement("button");
       this.#input = document.createElement("input");
@@ -848,47 +851,57 @@
       // update value
     }
     init() {
-      this.#input.value = this.value;
+      this.#input.value = this.props.value;
       this.updateButtonState();
 
       // 绑定事件
-      this.#minus.addEventListener("click", () => this.changeValue(-this.step));
-      this.#plus.addEventListener("click", () => this.changeValue(this.step));
+      this.#minus.addEventListener("click", () =>
+        this.changeValue(-this.props.step)
+      );
+      this.#plus.addEventListener("click", () =>
+        this.changeValue(this.props.step)
+      );
       this.#input.addEventListener("change", () => this.validateInput());
       this.#input.addEventListener("keydown", (e) => this.handleKeydown(e));
     }
     changeValue(delta) {
       // 避免浮点运算不准确
-      const newValue = (this.value * 100 + delta * 100) / 100;
-      this.value = Math.max(this.min, Math.min(this.max, newValue));
-      console.log(this.value);
-      this.#input.value = Number.isInteger(this.value)
-        ? this.value
-        : this.value.toFixed(2);
+      const newValue =
+        (Math.round(this.props.value * 100) + Math.round(delta * 100)) / 100;
+      this.props.value = Math.max(
+        this.props.min,
+        Math.min(this.props.max, newValue)
+      );
+      this.#input.value = Number.isInteger(this.props.value)
+        ? this.props.value
+        : this.props.value.toFixed(2);
       this.updateButtonState();
     }
     validateInput() {
       let value = parseFloat(this.#input.value);
       if (isNaN(value)) {
-        value = this.min;
+        value = this.props.min;
       }
-      this.value = Math.max(this.min, Math.min(this.max, value));
-      this.#input.value = Number.isInteger(this.value)
-        ? this.value
-        : this.value.toFixed(2);
+      this.props.value = Math.max(
+        this.props.min,
+        Math.min(this.props.max, value)
+      );
+      this.#input.value = Number.isInteger(this.props.value)
+        ? this.props.value
+        : this.props.value.toFixed(2);
       this.updateButtonState();
     }
     updateButtonState() {
-      this.#minus.disabled = this.value <= this.min;
-      this.#plus.disabled = this.value >= this.max;
+      this.#minus.disabled = this.props.value <= this.props.min;
+      this.#plus.disabled = this.props.value >= this.props.max;
     }
     handleKeydown(e) {
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        this.changeValue(this.step);
+        this.changeValue(this.props.step);
       } else if (e.key === "ArrowDown") {
         e.preventDefault();
-        this.changeValue(-this.step);
+        this.changeValue(-this.props.step);
       }
     }
   }
@@ -1048,9 +1061,25 @@
   label1.textContent = "期望价格";
   label2.textContent = "汇率";
   label3.textContent = "查询间隔";
+
   const input1 = document.createElement("input-number");
   const input2 = document.createElement("input-number");
   const input3 = document.createElement("input-number");
+  const queryIntervalOptions = reactive({
+    min: 0.01,
+    max: 10,
+    step: 1,
+    value: 1,
+  });
+  input3.props = queryIntervalOptions;
+
+  watch(
+    () => queryIntervalOptions.value,
+    (newValue, oldValue) => {
+      console.log("reactiveNew=>", newValue);
+      console.log("reactiveOld=>", oldValue);
+    }
+  );
   grid.addItems(label1, input1, label2, input2, label3, input3);
   // 执行按钮
   const statusBtn = document.createElement("toggle-button");
@@ -1058,7 +1087,6 @@
   const floatButton = document.createElement("float-button");
   floatButton.append(grid, statusBtn);
   document.documentElement.append(floatButton);
-  // TODO:优化inputnumber小数，控制排版组件
   // 风控处理机制
   //
   //
