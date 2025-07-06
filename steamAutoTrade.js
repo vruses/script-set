@@ -46,16 +46,35 @@
       riskCount: 0, // 计数用于判断是否被风控
       intervalID: 0, //当前页面的计时器id
     });
+    // 准确定时器对象，用来创建和移除定时器
+    const timer = new AccurateTimer();
     // riskCount变化时，判断是否达到风控标准
     watch(
       () => orderInfo.riskCount,
-      (newValue, _oldValue) => {
+      (newValue, oldValue) => {
         if (newValue <= 10) {
           // 暂时不用做什么
-          console.log('risk');
         } else {
-          // 放慢请求
-          console.log("被风控");
+          // 风控时重新创建一个原10倍慢的定时器
+          timer.clearTimer(orderInfo.intervalID);
+          orderInfo.intervalID = timer.setInterval(
+            () => {
+              querySellOrderList(orderInfo.itemID);
+            },
+            currentSettings.queryInterval * 10000,
+            { accurate: true, maxDrift: 5, name: "轮询商品列表" }
+          );
+        }
+        // 风控被恢复
+        if (newValue - oldValue < -5) {
+          timer.clearTimer(orderInfo.intervalID);
+          orderInfo.intervalID = timer.setInterval(
+            () => {
+              querySellOrderList(orderInfo.itemID);
+            },
+            currentSettings.queryInterval * 1000,
+            { accurate: true, maxDrift: 5, name: "轮询商品列表" }
+          );
         }
       }
     );
@@ -73,7 +92,9 @@
       cols: "repeat(2, minmax(auto, 1fr))", //文字溢出暂无解决方案
       gap: "2px",
     });
+    // 悬浮窗的第一个插槽
     grid.slot = "setting";
+
     const label1 = document.createElement("div");
     const label2 = document.createElement("div");
     const label3 = document.createElement("div");
@@ -84,6 +105,7 @@
     const input1 = document.createElement("input-number");
     const input2 = document.createElement("input-number");
     const input3 = document.createElement("input-number");
+
     // 三个value先从storage里获取，否则使用默认值
     // 当前页面的配置项
     const currentSettings = queryUrlSettings(location.href) ?? {
@@ -110,11 +132,12 @@
       step: 1,
       value: currentSettings.queryInterval,
     });
+    // 将响应式对象赋给组件以此触发副作用
     input1.props = expectedPriceOptions;
     input2.props = exchangeRateOptions;
     input3.props = queryIntervalOptions;
 
-    // 变化时更新配置项
+    // 用户设置配置时，更新配置项，重新存储配置
     watch(
       () => expectedPriceOptions.value,
       (newValue, _oldValue) => {
@@ -143,12 +166,13 @@
         updateUrlSettings(currentUrl, currentSettings);
       }
     );
+    // 将组件添加至布局容器
     grid.addItems(label1, input1, label2, input2, label3, input3);
     const status = reactive({
       isActive: false,
     });
-    const timer = new AccurateTimer();
-    // 变化时关闭或者开启轮询定时器
+
+    // 执行按钮状态变化时，关闭或者开启轮询定时器
     watch(
       () => status.isActive,
       (newValue, _oldValue) => {
@@ -171,6 +195,8 @@
     );
     // 执行按钮
     const statusBtn = document.createElement("toggle-button");
+    // 悬浮窗的第二个插槽
+
     statusBtn.slot = "trigger";
     statusBtn.props = status;
     const floatButton = document.createElement("float-button");
@@ -216,9 +242,9 @@
               if (
                 checkPriceExpectation(currentPrice, expectedPrice, exchangeRate)
               ) {
-                createBuyOrder();
+                createBuyOrder(expectedPrice, exchangeRate);
               }
-              orderInfo.riskCount;
+              orderInfo.riskCount = 0;
             }
           }
         }
@@ -247,6 +273,7 @@
     }).error(function () {
       // 处理错误监测风控
       orderInfo.riskCount++;
+      console.log(orderInfo.riskCount);
     });
   }
 
@@ -273,11 +300,10 @@
   }
 
   // 创建订单请求
-  function createBuyOrder() {
+  function createBuyOrder(expectedPrice, exchangeRate) {
     // 直接用steam暴露的api
-    var currency = GetPriceValueAsInt(
-      $J("#market_buy_commodity_input_price").val()
-    );
+    // 计算期望价格
+    var currency = expectedPrice * exchangeRate * 100;
     var quantity = parseInt($J("#market_buy_commodity_input_quantity").val());
     var price_total = Math.round(currency * quantity);
 
@@ -312,7 +338,7 @@
         sessionid: g_sessionID,
         currency: g_rgWalletInfo["wallet_currency"],
         appid: getItemInfoFromURL()?.appId,
-        // market_hash_name: getItemInfoFromURL()?.itemName,
+        market_hash_name: getItemInfoFromURL()?.itemName,
         price_total: price_total,
         tradefee_tax: GetPriceValueAsInt(
           $J("#market_buy_commodity_input_localtax").val()
@@ -330,6 +356,18 @@
       },
       crossDomain: true,
       xhrFields: { withCredentials: true },
+    }).success(function (data) {
+      if (data?.buy_orderid) {
+        console.log(
+          `%c创建购买订单：${data.buy_orderid}`,
+          "color: red; font-size: 20px; font-weight: bold;"
+        );
+      } else {
+        console.log(
+          `%c${data.message}`,
+          "color: lightblue; font-size: 20px; font-weight: bold;"
+        );
+      }
     });
   }
 
@@ -1281,6 +1319,5 @@
     }
   }
 
-  main()
-  // TODO:风控，实现购买订单逻辑
+  main();
 })();
