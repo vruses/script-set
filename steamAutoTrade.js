@@ -49,7 +49,14 @@
   watch(
     () => orderInfo.itemID,
     (newValue, _oldValue) => {
-      querySellOrderList(newValue);
+      const timer = new AccurateTimer();
+      const foo = timer.setInterval(
+        () => {
+          querySellOrderList(newValue);
+        },
+        1000,
+        { accurate: true, maxDrift: 5, name: "轮询商品列表" }
+      );
     }
   );
   // riskCount变化时，判断是否达到风控标准
@@ -113,7 +120,7 @@
   function querySellOrderList(itemID) {
     console.log("queryOrder=>", itemID);
     // 调用steam暴露的api方法
-    Market_LoadOrderSpread(itemID);
+    // Market_LoadOrderSpread(itemID);
   }
 
   // 检查当前价格是否符合期望
@@ -252,7 +259,6 @@
     };
   }
 
-  
   // 准确定时器类
   class AccurateTimer {
     constructor() {
@@ -597,6 +603,464 @@
     }
   }
 
+  // WebComponent组件
+  class FloatButton extends HTMLElement {
+    constructor() {
+      super();
+      const shadowRoot = this.attachShadow({ mode: "open" });
+      const style = document.createElement("style");
+      style.textContent = `
+      :host {
+        /* 避免外部css的影响 */
+        all: initial;
+        font-size: normal;
+        position: fixed;
+        right: 5px;
+        top: 40%;
+        transform: translateY(-50%);
+        z-index: 1000;
+      }
+      .float-button {
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        background:rgba(67, 87, 175, 0.65);
+        color: white;
+        border: none;
+        cursor: pointer;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+
+      .float-button:hover {
+        background: #4357af;
+        transform: scale(1.1);
+      }
+      .panel {
+        position: absolute;
+        display: flex;
+        right: 50px;
+        top: 0;
+        justify-content: center;
+ 
+        flex-wrap: wrap;
+        background:rgba(255, 255, 255, 1);
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        width: 200px;
+        opacity: 0;
+        transform: translateX(20px);
+        transition: all 0.3s ease;
+        pointer-events: none;
+      }
+      .input-group {
+        padding: 5px 10px;
+      }
+      .panel.open {
+        opacity: 1;
+        transform: translateX(0);
+        pointer-events: all;
+      }
+      .close {
+        transform: rotate(180deg);
+      }`;
+      shadowRoot.innerHTML = `
+    <button class="float-button">+</button>
+      <div class="panel">
+        <div class="input-group">
+        <slot name="setting">Widget Missing</slot>
+        </div>
+        <div class="input-group">
+        <slot name="trigger">Widget Missing</slot>
+        </div>
+      </div>`;
+      shadowRoot.append(style);
+      const floatBtn = shadowRoot.querySelector(".float-button");
+      const panel = shadowRoot.querySelector(".panel");
+
+      floatBtn.addEventListener("click", () => {
+        panel.classList.toggle("open");
+        floatBtn.classList.toggle("close");
+      });
+    }
+  }
+  class ToggleButton extends HTMLElement {
+    constructor() {
+      super();
+      this.isDanger = false;
+      this.dangerContent = "结束执行";
+      this.successContent = "开始执行";
+      this.attachShadow({ mode: "open" });
+
+      // 初始化按钮样式与结构
+      this.shadowRoot.innerHTML = `
+        <style>
+          button {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 6px;
+            color: white;
+            background-color:#719d44; 
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+          }
+
+          button.danger {
+            background-color:#a73d44; 
+          }
+
+          button:focus {
+            outline: none;
+          }
+        </style>
+        <button><slot>按钮</slot></button>
+      `;
+    }
+
+    connectedCallback() {
+      this.button = this.shadowRoot.querySelector("button");
+      this.updateButton(); // 初始更新
+      this.button.addEventListener("click", () => this.toggleState());
+    }
+
+    toggleState() {
+      this.isDanger = !this.isDanger;
+      this.updateButton();
+    }
+
+    updateButton() {
+      if (this.isDanger) {
+        this.button.classList.add("danger");
+        this.button.textContent = this.dangerContent;
+      } else {
+        this.button.classList.remove("danger");
+        this.button.textContent = this.successContent;
+      }
+    }
+  }
+  class InputNumber extends HTMLElement {
+    #minus;
+    #input;
+    #plus;
+    constructor() {
+      super();
+      this.min = 0.1;
+      this.max = 300;
+      this.step = 0.01;
+      this.value = 1;
+
+      this.#minus = document.createElement("button");
+      this.#input = document.createElement("input");
+      this.#plus = document.createElement("button");
+      this.#minus.classList.add(
+        "number-input__button",
+        "number-input__button--minus"
+      );
+      this.#minus.type = "button";
+      this.#input.classList.add("number-input__input");
+      this.#plus.classList.add(
+        "number-input__button",
+        "number-input__button--plus"
+      );
+      this.#plus.type = "button";
+      const shadowRoot = this.attachShadow({ mode: "open" });
+      const style = document.createElement("style");
+      style.textContent = `
+        .number-input__button {
+            width: 32px;
+            height: 34px;
+            background: #f5f7fa;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            position: relative;
+            transition: background 0.3s;
+        }
+        .number-input__button:hover {
+            background: #e4e7ed;
+        }
+        .number-input__button:disabled {
+            cursor: not-allowed;
+            color: #c0c4cc;
+            background: #f5f7fa;
+        }
+        .number-input__button::before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 10px;
+            height: 2px;
+            background: #606266;
+        }
+        .number-input__button--plus::after {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 10px;
+            background: #606266;
+        }
+        .number-input__input {
+            width: 60px;
+            height: 32px;
+            border: none;
+            border-left: 1px solid #dcdfe6;
+            border-right: 1px solid #dcdfe6;
+            text-align: center;
+            outline: none;
+            font-size: 14px;
+            color: #606266;
+        }
+        :host {
+            box-sizing: border-box;
+            display: inline-flex;
+            border: 1px solid #dcdfe6;
+            border-radius: 4px;
+            overflow: hidden;
+            transition: all 0.25s linear;
+        }
+        :host(:hover) {
+            box-shadow: 0 0 0 1px #dbe6f1;
+        }
+        :host(:focus-within) {
+            box-shadow: 0 0 0 1px #409effd9;
+            transition: all 0.25s linear;
+        }
+        .number-input__input:disabled {
+            background: #f5f7fa;
+            cursor: not-allowed;
+        }`;
+      shadowRoot.append(style, this.#minus, this.#input, this.#plus);
+    }
+    connectedCallback() {
+      this.init();
+    }
+    attributeChangedCallback() {
+      // update value
+    }
+    init() {
+      this.#input.value = this.value;
+      this.updateButtonState();
+
+      // 绑定事件
+      this.#minus.addEventListener("click", () => this.changeValue(-this.step));
+      this.#plus.addEventListener("click", () => this.changeValue(this.step));
+      this.#input.addEventListener("change", () => this.validateInput());
+      this.#input.addEventListener("keydown", (e) => this.handleKeydown(e));
+    }
+    changeValue(delta) {
+      // 避免浮点运算不准确
+      const newValue = (this.value * 100 + delta * 100) / 100;
+      this.value = Math.max(this.min, Math.min(this.max, newValue));
+      console.log(this.value);
+      this.#input.value = Number.isInteger(this.value)
+        ? this.value
+        : this.value.toFixed(2);
+      this.updateButtonState();
+    }
+    validateInput() {
+      let value = parseFloat(this.#input.value);
+      if (isNaN(value)) {
+        value = this.min;
+      }
+      this.value = Math.max(this.min, Math.min(this.max, value));
+      this.#input.value = Number.isInteger(this.value)
+        ? this.value
+        : this.value.toFixed(2);
+      this.updateButtonState();
+    }
+    updateButtonState() {
+      this.#minus.disabled = this.value <= this.min;
+      this.#plus.disabled = this.value >= this.max;
+    }
+    handleKeydown(e) {
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        this.changeValue(this.step);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        this.changeValue(-this.step);
+      }
+    }
+  }
+  class GridLayout extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({ mode: "open" });
+      this.render();
+    }
+
+    static get observedAttributes() {
+      return ["rows", "cols", "gap", "auto-fit", "min-width", "max-width"];
+    }
+
+    attributeChangedCallback(name, oldValue, newValue) {
+      if (oldValue !== newValue) {
+        this.updateGridStyles();
+      }
+    }
+
+    render() {
+      this.shadowRoot.innerHTML = `
+                    <style>
+                        :host {
+                            display: block;
+                            width: 100%;
+                            box-sizing: border-box;
+                        }
+
+                        .grid-container {
+                            display: grid;
+                            width: 100%;
+                            gap: var(--grid-gap, 10px);
+                            grid-template-columns: var(--grid-cols, repeat(3, 1fr));
+                            grid-template-rows: var(--grid-rows, auto);
+                            box-sizing: border-box;
+                        }
+
+                        .grid-item {
+                            background: var(--item-bg, #f5f5f5);
+                            border: var(--item-border, 1px solid #ddd);
+                            border-radius: var(--item-radius, 4px);
+                            padding: var(--item-padding, 12px);
+                            transition: all 0.3s ease;
+                            box-sizing: border-box;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            min-height: var(--item-min-height, 60px);
+                        }
+
+                        .grid-item:hover {
+                            background: var(--item-hover-bg, #e8f4f8);
+                            transform: translateY(-2px);
+                            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+                        }
+
+                        ::slotted(*) {
+                            width: 100%;
+                            height: 100%;
+                            margin: 0;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                        }
+
+                        /* 响应式支持 */
+                        @media (max-width: 768px) {
+                            .grid-container {
+                                grid-template-columns: var(--mobile-cols, repeat(2, 1fr));
+                                gap: var(--mobile-gap, 8px);
+                            }
+                        }
+
+                        @media (max-width: 480px) {
+                            .grid-container {
+                                grid-template-columns: var(--small-mobile-cols, 1fr);
+                            }
+                        }
+                    </style>
+                    <div class="grid-container">
+                        <slot></slot>
+                    </div>
+                `;
+
+      this.updateGridStyles();
+    }
+
+    updateGridStyles() {
+      const container = this.shadowRoot.querySelector(".grid-container");
+      if (!container) return;
+
+      const rows = this.getAttribute("rows") || "auto";
+      const cols = this.getAttribute("cols") || "repeat(3, 1fr)";
+      const gap = this.getAttribute("gap") || "10px";
+      const autoFit = this.getAttribute("auto-fit") === "true";
+      const minWidth = this.getAttribute("min-width") || "200px";
+      const maxWidth = this.getAttribute("max-width") || "1fr";
+
+      // 设置CSS自定义属性
+      container.style.setProperty("--grid-gap", gap);
+      container.style.setProperty("--grid-rows", rows);
+
+      if (autoFit) {
+        container.style.setProperty(
+          "--grid-cols",
+          `repeat(auto-fit, minmax(${minWidth}, ${maxWidth}))`
+        );
+      } else {
+        container.style.setProperty("--grid-cols", cols);
+      }
+    }
+
+    // 添加网格项
+    addItems(...elements) {
+      for (const element of elements) {
+        const item = document.createElement("div");
+        item.className = "grid-item";
+        item.appendChild(element);
+        this.appendChild(item);
+      }
+    }
+
+    // 清空所有项
+    clearItems() {
+      while (this.firstChild) {
+        this.removeChild(this.firstChild);
+      }
+    }
+
+    // 设置网格配置
+    setGridConfig(config) {
+      if (config.rows) this.setAttribute("rows", config.rows);
+      if (config.cols) this.setAttribute("cols", config.cols);
+      if (config.gap) this.setAttribute("gap", config.gap);
+      if (config.autoFit !== undefined)
+        this.setAttribute("auto-fit", config.autoFit);
+      if (config.minWidth) this.setAttribute("min-width", config.minWidth);
+      if (config.maxWidth) this.setAttribute("max-width", config.maxWidth);
+    }
+  }
+
+  // 注册WebComponent
+  customElements.define("grid-layout", GridLayout);
+  customElements.define("toggle-button", ToggleButton);
+  customElements.define("float-button", FloatButton);
+  customElements.define("input-number", InputNumber);
+
+  const grid = document.createElement("grid-layout");
+  // 设置网格配置
+  grid.setGridConfig({
+    rows: "repeat(2, 45px)",
+    cols: "repeat(2, 1fr)",
+    gap: "2px",
+  });
+  grid.slot = "setting";
+  const label1 = document.createElement("span");
+  const label2 = document.createElement("span");
+  label1.textContent = "期望价格";
+  label2.textContent = "查询间隔";
+  const input1 = document.createElement("input-number");
+  const input2 = document.createElement("input-number");
+  grid.addItems(label1, input1, label2, input2);
+  // 执行按钮
+  const statusBtn = document.createElement("toggle-button");
+  statusBtn.slot = "trigger";
+  const floatButton = document.createElement("float-button");
+  floatButton.append(grid, statusBtn);
+  document.documentElement.append(floatButton);
+  // TODO:优化inputnumber小数，控制排版组件
+  // 风控处理机制
+  //
   //
   // 思路
   // 按一定频率请求1，同时拦截请求1，先拿到steam自身请求后的item_nameid
