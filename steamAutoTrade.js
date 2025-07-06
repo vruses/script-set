@@ -49,8 +49,9 @@
     () => orderInfo.riskCount,
     (newValue, _oldValue) => {
       if (newValue <= 10) {
-        console.log("暂时没被风控");
+        // 暂时不用做什么
       } else {
+        // 放慢请求
         console.log("被风控");
       }
     }
@@ -75,7 +76,6 @@
             "https://steamcommunity.com/market/itemordershistogram"
           )
         ) {
-          console.log(this.status);
           // 可能response为空可能为429
           // 429错误此处捕获不到，需要调用$ajax.error
           if (this.status === 200) {
@@ -86,13 +86,18 @@
             }
             const response = JSON.parse(this.responseText);
             console.log(response);
-            const currentPrice = response?.sell_order_graph?.[0]?.[0] ?? 0;
-            const expectedPrice = storage.get("expectedPrice", 3);
-            if (checkPriceExpectation(currentPrice, expectedPrice)) {
+            // 当获取信息错误时应将当前价格设置为无穷避免误购买
+            const currentPrice = response?.sell_order_graph?.[0]?.[0] ?? 10e20;
+            if (
+              checkPriceExpectation(
+                currentPrice,
+                (expectedPrice = 0.02),
+                (exchangeRate = 1)
+              )
+            ) {
               createBuyOrder();
             }
             orderInfo.riskCount;
-            console.log("riskCountReset=>", orderInfo.riskCount);
           }
         }
       }
@@ -103,9 +108,24 @@
 
   // 查询正在销售的商品列表
   function querySellOrderList(itemID) {
-    console.log("queryOrder=>", itemID);
-    // 调用steam暴露的api方法
-    // Market_LoadOrderSpread(itemID);
+    // 改用steam暴露的api以处理错误信息
+    $J.ajax({
+      url: "https://steamcommunity.com/market/itemordershistogram",
+      type: "GET",
+      data: {
+        country: g_strCountryCode,
+        language: g_strLanguage,
+        currency:
+          typeof g_rgWalletInfo != "undefined" &&
+          g_rgWalletInfo["wallet_currency"] != 0
+            ? g_rgWalletInfo["wallet_currency"]
+            : 1,
+        item_nameid: itemID,
+      },
+    }).error(function () {
+      // 处理错误监测风控
+      orderInfo.riskCount++;
+    });
   }
 
   // 检查当前价格是否符合期望
@@ -113,9 +133,82 @@
     return current <= expected * exchangeRate;
   }
 
+  // 从URL获取创建订单所需
+  function getItemInfoFromURL() {
+    const url = window.location.href;
+    const urlPattern = /\/market\/listings\/(\d+)\/(.+)/;
+    const match = url.match(urlPattern);
+
+    if (match) {
+      const appId = match[1];
+      const itemName = decodeURIComponent(match[2]);
+      return {
+        appId: appId,
+        itemName: itemName,
+      };
+    }
+    return null;
+  }
+
   // 创建订单请求
   function createBuyOrder() {
-    console.log("订单已创建");
+    // 直接用steam暴露的api
+    var currency = GetPriceValueAsInt(
+      $J("#market_buy_commodity_input_price").val()
+    );
+    var quantity = parseInt($J("#market_buy_commodity_input_quantity").val());
+    var price_total = Math.round(currency * quantity);
+
+    var first_name = $J("#first_name") ? $J("#first_name").val() : "";
+    var last_name = $J("#last_name") ? $J("#last_name").val() : "";
+    var billing_address = $J("#billing_address")
+      ? $J("#billing_address").val()
+      : "";
+    var billing_address_two = $J("#billing_address_two")
+      ? $J("#billing_address_two").val()
+      : "";
+    var billing_country = $J("#billing_country")
+      ? $J("#billing_country").val()
+      : "";
+    var billing_city = $J("#billing_city") ? $J("#billing_city").val() : "";
+    var billing_state = g_bHasBillingStates
+      ? $J("#billing_state_select")
+        ? $J("#billing_state_select").val()
+        : ""
+      : "";
+    var billing_postal_code = $J("#billing_postal_code")
+      ? $J("#billing_postal_code").val()
+      : "";
+    var save_my_address = $J("#save_my_address")
+      ? $J("#save_my_address").prop("checked")
+      : false;
+
+    $J.ajax({
+      url: "https://steamcommunity.com/market/createbuyorder/",
+      type: "POST",
+      data: {
+        sessionid: g_sessionID,
+        currency: g_rgWalletInfo["wallet_currency"],
+        appid: getItemInfoFromURL()?.appId,
+        // market_hash_name: getItemInfoFromURL()?.itemName,
+        price_total: price_total,
+        tradefee_tax: GetPriceValueAsInt(
+          $J("#market_buy_commodity_input_localtax").val()
+        ),
+        quantity: quantity,
+        first_name: first_name,
+        last_name: last_name,
+        billing_address: billing_address,
+        billing_address_two: billing_address_two,
+        billing_country: billing_country,
+        billing_city: billing_city,
+        billing_state: billing_state,
+        billing_postal_code: billing_postal_code,
+        save_my_address: save_my_address ? "1" : "0",
+      },
+      crossDomain: true,
+      xhrFields: { withCredentials: true },
+    });
   }
 
   // 查询对应url的本地配置
@@ -1165,7 +1258,7 @@
       if (newValue) {
         orderInfo.intervalID = timer.setInterval(
           () => {
-            querySellOrderList(newValue);
+            querySellOrderList(orderInfo.itemID);
           },
           currentSettings.queryInterval * 1000,
           { accurate: true, maxDrift: 5, name: "轮询商品列表" }
