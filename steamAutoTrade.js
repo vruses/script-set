@@ -42,22 +42,8 @@
   const orderInfo = reactive({
     itemID: 0, // 商品id
     riskCount: 0, // 计数用于判断是否被风控
+    intervalID: 0, //当前页面的计时器id
   });
-  console.log(orderInfo);
-  // 商品id变化时，开始轮询商品列表
-  watch(
-    () => orderInfo.itemID,
-    (newValue, _oldValue) => {
-      const timer = new AccurateTimer();
-      const foo = timer.setInterval(
-        () => {
-          querySellOrderList(newValue);
-        },
-        1000,
-        { accurate: true, maxDrift: 5, name: "轮询商品列表" }
-      );
-    }
-  );
   // riskCount变化时，判断是否达到风控标准
   watch(
     () => orderInfo.riskCount,
@@ -123,8 +109,8 @@
   }
 
   // 检查当前价格是否符合期望
-  function checkPriceExpectation(current, expected) {
-    return current <= expected;
+  function checkPriceExpectation(current, expected, exchangeRate) {
+    return current <= expected * exchangeRate;
   }
 
   // 创建订单请求
@@ -729,7 +715,9 @@
   class ToggleButton extends HTMLElement {
     constructor() {
       super();
-      this.isDanger = false;
+      this.props = {
+        isActive: false,
+      };
       this.dangerContent = "结束执行";
       this.successContent = "开始执行";
       this.attachShadow({ mode: "open" });
@@ -767,12 +755,12 @@
     }
 
     toggleState() {
-      this.isDanger = !this.isDanger;
+      this.props.isActive = !this.props.isActive;
       this.updateButton();
     }
 
     updateButton() {
-      if (this.isDanger) {
+      if (this.props.isActive) {
         this.button.classList.add("danger");
         this.button.textContent = this.dangerContent;
       } else {
@@ -1155,17 +1143,45 @@
     () => queryIntervalOptions.value,
     (newValue, _oldValue) => {
       const currentUrl = location.href;
+      // 更新当前的查询间隔
       currentSettings.queryInterval = newValue;
       // 存储当前页面的查询间隔
       updateUrlSettings(currentUrl, currentSettings);
-      querySellOrderList(newValue);
     }
   );
   grid.addItems(label1, input1, label2, input2, label3, input3);
+  const status = reactive({
+    isActive: false,
+  });
+  const timer = new AccurateTimer();
+  // 变化时关闭或者开启轮询定时器
+  watch(
+    () => status.isActive,
+    (newValue, _oldValue) => {
+      //如果orderInfo不存在itemID的信息则不执行
+      if (!orderInfo.itemID) return;
+
+      // 创建定时器，关闭定时器
+      if (newValue) {
+        orderInfo.intervalID = timer.setInterval(
+          () => {
+            querySellOrderList(newValue);
+          },
+          currentSettings.queryInterval * 1000,
+          { accurate: true, maxDrift: 5, name: "轮询商品列表" }
+        );
+      } else {
+        timer.clearTimer(orderInfo.intervalID);
+      }
+    }
+  );
   // 执行按钮
   const statusBtn = document.createElement("toggle-button");
   statusBtn.slot = "trigger";
+  statusBtn.props = status;
   const floatButton = document.createElement("float-button");
   floatButton.append(grid, statusBtn);
   document.documentElement.append(floatButton);
+
+  // TODO:风控，实现购买订单逻辑
 })();
