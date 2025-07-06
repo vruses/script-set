@@ -36,75 +36,197 @@
     },
   };
 
-  // 用于首次请求获取本页商品id
-  let runOnce = false;
-  // 用于缓存本页面的商品信息
-  const orderInfo = reactive({
-    itemID: 0, // 商品id
-    riskCount: 0, // 计数用于判断是否被风控
-    intervalID: 0, //当前页面的计时器id
-  });
-  // riskCount变化时，判断是否达到风控标准
-  watch(
-    () => orderInfo.riskCount,
-    (newValue, _oldValue) => {
-      if (newValue <= 10) {
-        // 暂时不用做什么
-      } else {
-        // 放慢请求
-        console.log("被风控");
-      }
-    }
-  );
-  // XHR响应拦截
-  const originalOpen = XMLHttpRequest.prototype.open;
-  const originalSend = XMLHttpRequest.prototype.send;
-
-  XMLHttpRequest.prototype.open = function (_method, url, ...args) {
-    // 便于在send阶段筛选特定请求
-    this._url = url;
-    return originalOpen.apply(this, arguments);
-  };
-
-  XMLHttpRequest.prototype.send = function (body) {
-    // 监听状态变化
-    this.addEventListener("readystatechange", function () {
-      if (this.readyState === 4) {
-        // 查询商品列表
-        if (
-          this._url.includes(
-            "https://steamcommunity.com/market/itemordershistogram"
-          )
-        ) {
-          // 可能response为空可能为429
-          // 429错误此处捕获不到，需要调用$ajax.error
-          if (this.status === 200) {
-            if (!runOnce) {
-              const params = new URL(this._url).searchParams;
-              orderInfo.itemID = params.get("item_nameid");
-              runOnce = true;
-            }
-            const response = JSON.parse(this.responseText);
-            console.log(response);
-            // 当获取信息错误时应将当前价格设置为无穷避免误购买
-            const currentPrice = response?.sell_order_graph?.[0]?.[0] ?? 10e20;
-            if (
-              checkPriceExpectation(
-                currentPrice,
-                (expectedPrice = 0.02),
-                (exchangeRate = 1)
-              )
-            ) {
-              createBuyOrder();
-            }
-            orderInfo.riskCount;
-          }
+  /* 主运行逻辑 */
+  function main() {
+    // 用于首次请求获取本页商品id
+    let runOnce = false;
+    // 用于缓存本页面的商品信息
+    const orderInfo = reactive({
+      itemID: 0, // 商品id
+      riskCount: 0, // 计数用于判断是否被风控
+      intervalID: 0, //当前页面的计时器id
+    });
+    // riskCount变化时，判断是否达到风控标准
+    watch(
+      () => orderInfo.riskCount,
+      (newValue, _oldValue) => {
+        if (newValue <= 10) {
+          // 暂时不用做什么
+          console.log('risk');
+        } else {
+          // 放慢请求
+          console.log("被风控");
         }
       }
-    });
+    );
 
-    return originalSend.apply(this, arguments);
-  };
+    // 注册WebComponent
+    customElements.define("grid-layout", GridLayout);
+    customElements.define("toggle-button", ToggleButton);
+    customElements.define("float-button", FloatButton);
+    customElements.define("input-number", InputNumber);
+
+    const grid = document.createElement("grid-layout");
+    // 设置网格配置
+    grid.setGridConfig({
+      rows: "repeat(3, 45px)",
+      cols: "repeat(2, minmax(auto, 1fr))", //文字溢出暂无解决方案
+      gap: "2px",
+    });
+    grid.slot = "setting";
+    const label1 = document.createElement("div");
+    const label2 = document.createElement("div");
+    const label3 = document.createElement("div");
+    label1.textContent = "期望价格";
+    label2.textContent = "汇率";
+    label3.textContent = "查询间隔";
+
+    const input1 = document.createElement("input-number");
+    const input2 = document.createElement("input-number");
+    const input3 = document.createElement("input-number");
+    // 三个value先从storage里获取，否则使用默认值
+    // 当前页面的配置项
+    const currentSettings = queryUrlSettings(location.href) ?? {
+      expectedPrice: 0,
+      exchangeRate: 0,
+      queryInterval: 1,
+    };
+    // 各配置项属性对应的响应式对象
+    const expectedPriceOptions = reactive({
+      min: 0,
+      max: 10e8,
+      step: 1,
+      value: currentSettings.expectedPrice,
+    });
+    const exchangeRateOptions = reactive({
+      min: 0,
+      max: 10e8,
+      step: 1,
+      value: currentSettings.exchangeRate,
+    });
+    const queryIntervalOptions = reactive({
+      min: 0.01,
+      max: 10e8,
+      step: 1,
+      value: currentSettings.queryInterval,
+    });
+    input1.props = expectedPriceOptions;
+    input2.props = exchangeRateOptions;
+    input3.props = queryIntervalOptions;
+
+    // 变化时更新配置项
+    watch(
+      () => expectedPriceOptions.value,
+      (newValue, _oldValue) => {
+        const currentUrl = location.href;
+        currentSettings.expectedPrice = newValue;
+        // 存储当前页面的期望价格
+        updateUrlSettings(currentUrl, currentSettings);
+      }
+    );
+    watch(
+      () => exchangeRateOptions.value,
+      (newValue, _oldValue) => {
+        const currentUrl = location.href;
+        currentSettings.exchangeRate = newValue;
+        // 存储当前页面的汇率
+        updateUrlSettings(currentUrl, currentSettings);
+      }
+    );
+    watch(
+      () => queryIntervalOptions.value,
+      (newValue, _oldValue) => {
+        const currentUrl = location.href;
+        // 更新当前的查询间隔
+        currentSettings.queryInterval = newValue;
+        // 存储当前页面的查询间隔
+        updateUrlSettings(currentUrl, currentSettings);
+      }
+    );
+    grid.addItems(label1, input1, label2, input2, label3, input3);
+    const status = reactive({
+      isActive: false,
+    });
+    const timer = new AccurateTimer();
+    // 变化时关闭或者开启轮询定时器
+    watch(
+      () => status.isActive,
+      (newValue, _oldValue) => {
+        //如果orderInfo不存在itemID的信息则不执行
+        if (!orderInfo.itemID) return;
+
+        // 创建定时器，关闭定时器
+        if (newValue) {
+          orderInfo.intervalID = timer.setInterval(
+            () => {
+              querySellOrderList(orderInfo.itemID);
+            },
+            currentSettings.queryInterval * 1000,
+            { accurate: true, maxDrift: 5, name: "轮询商品列表" }
+          );
+        } else {
+          timer.clearTimer(orderInfo.intervalID);
+        }
+      }
+    );
+    // 执行按钮
+    const statusBtn = document.createElement("toggle-button");
+    statusBtn.slot = "trigger";
+    statusBtn.props = status;
+    const floatButton = document.createElement("float-button");
+    floatButton.append(grid, statusBtn);
+    document.documentElement.append(floatButton);
+
+    // XHR响应拦截
+    const originalOpen = XMLHttpRequest.prototype.open;
+    const originalSend = XMLHttpRequest.prototype.send;
+
+    XMLHttpRequest.prototype.open = function (_method, url, ...args) {
+      // 便于在send阶段筛选特定请求
+      this._url = url;
+      return originalOpen.apply(this, arguments);
+    };
+
+    XMLHttpRequest.prototype.send = function (body) {
+      // 监听状态变化
+      this.addEventListener("readystatechange", function () {
+        if (this.readyState === 4) {
+          // 查询商品列表
+          if (
+            this._url.includes(
+              "https://steamcommunity.com/market/itemordershistogram"
+            )
+          ) {
+            // 可能response为空可能为429
+            // 429错误此处捕获不到，需要调用$ajax.error
+            if (this.status === 200) {
+              if (!runOnce) {
+                const params = new URL(this._url).searchParams;
+                orderInfo.itemID = params.get("item_nameid");
+                runOnce = true;
+              }
+              const response = JSON.parse(this.responseText);
+              console.log(response);
+              // 当获取信息错误时应将当前价格设置为无穷避免误购买
+              const currentPrice =
+                response?.sell_order_graph?.[0]?.[0] ?? 10e20;
+              const expectedPrice = currentSettings.expectedPrice;
+              const exchangeRate = currentSettings.exchangeRate;
+              // 如果符合计算后的期望价格创建订单请求
+              if (
+                checkPriceExpectation(currentPrice, expectedPrice, exchangeRate)
+              ) {
+                createBuyOrder();
+              }
+              orderInfo.riskCount;
+            }
+          }
+        }
+      });
+
+      return originalSend.apply(this, arguments);
+    };
+  }
 
   // 查询正在销售的商品列表
   function querySellOrderList(itemID) {
@@ -1159,122 +1281,6 @@
     }
   }
 
-  // 注册WebComponent
-  customElements.define("grid-layout", GridLayout);
-  customElements.define("toggle-button", ToggleButton);
-  customElements.define("float-button", FloatButton);
-  customElements.define("input-number", InputNumber);
-
-  const grid = document.createElement("grid-layout");
-  // 设置网格配置
-  grid.setGridConfig({
-    rows: "repeat(3, 45px)",
-    cols: "repeat(2, minmax(auto, 1fr))", //文字溢出暂无解决方案
-    gap: "2px",
-  });
-  grid.slot = "setting";
-  const label1 = document.createElement("div");
-  const label2 = document.createElement("div");
-  const label3 = document.createElement("div");
-  label1.textContent = "期望价格";
-  label2.textContent = "汇率";
-  label3.textContent = "查询间隔";
-
-  const input1 = document.createElement("input-number");
-  const input2 = document.createElement("input-number");
-  const input3 = document.createElement("input-number");
-  // 三个value先从storage里获取，否则使用默认值
-  // 当前页面的配置项
-  const currentSettings = queryUrlSettings(location.href) ?? {
-    expectedPrice: 0,
-    exchangeRate: 0,
-    queryInterval: 1,
-  };
-  // 各配置项属性对应的响应式对象
-  const expectedPriceOptions = reactive({
-    min: 0,
-    max: 10e8,
-    step: 1,
-    value: currentSettings.expectedPrice,
-  });
-  const exchangeRateOptions = reactive({
-    min: 0,
-    max: 10e8,
-    step: 1,
-    value: currentSettings.exchangeRate,
-  });
-  const queryIntervalOptions = reactive({
-    min: 0.01,
-    max: 10e8,
-    step: 1,
-    value: currentSettings.queryInterval,
-  });
-  input1.props = expectedPriceOptions;
-  input2.props = exchangeRateOptions;
-  input3.props = queryIntervalOptions;
-
-  // 变化时更新配置项
-  watch(
-    () => expectedPriceOptions.value,
-    (newValue, _oldValue) => {
-      const currentUrl = location.href;
-      currentSettings.expectedPrice = newValue;
-      // 存储当前页面的期望价格
-      updateUrlSettings(currentUrl, currentSettings);
-    }
-  );
-  watch(
-    () => exchangeRateOptions.value,
-    (newValue, _oldValue) => {
-      const currentUrl = location.href;
-      currentSettings.exchangeRate = newValue;
-      // 存储当前页面的汇率
-      updateUrlSettings(currentUrl, currentSettings);
-    }
-  );
-  watch(
-    () => queryIntervalOptions.value,
-    (newValue, _oldValue) => {
-      const currentUrl = location.href;
-      // 更新当前的查询间隔
-      currentSettings.queryInterval = newValue;
-      // 存储当前页面的查询间隔
-      updateUrlSettings(currentUrl, currentSettings);
-    }
-  );
-  grid.addItems(label1, input1, label2, input2, label3, input3);
-  const status = reactive({
-    isActive: false,
-  });
-  const timer = new AccurateTimer();
-  // 变化时关闭或者开启轮询定时器
-  watch(
-    () => status.isActive,
-    (newValue, _oldValue) => {
-      //如果orderInfo不存在itemID的信息则不执行
-      if (!orderInfo.itemID) return;
-
-      // 创建定时器，关闭定时器
-      if (newValue) {
-        orderInfo.intervalID = timer.setInterval(
-          () => {
-            querySellOrderList(orderInfo.itemID);
-          },
-          currentSettings.queryInterval * 1000,
-          { accurate: true, maxDrift: 5, name: "轮询商品列表" }
-        );
-      } else {
-        timer.clearTimer(orderInfo.intervalID);
-      }
-    }
-  );
-  // 执行按钮
-  const statusBtn = document.createElement("toggle-button");
-  statusBtn.slot = "trigger";
-  statusBtn.props = status;
-  const floatButton = document.createElement("float-button");
-  floatButton.append(grid, statusBtn);
-  document.documentElement.append(floatButton);
-
+  main()
   // TODO:风控，实现购买订单逻辑
 })();
