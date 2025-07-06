@@ -648,10 +648,10 @@
         justify-content: center;
  
         flex-wrap: wrap;
-        background:rgba(255, 255, 255, 1);
+        background:rgba(255, 255, 255);
         border-radius: 8px;
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-        width: 200px;
+        width: 230px;
         opacity: 0;
         transform: translateX(20px);
         transition: all 0.3s ease;
@@ -921,9 +921,9 @@
                         .grid-container {
                             display: grid;
                             width: 100%;
-                            gap: var(--grid-gap, 10px);
-                            grid-template-columns: var(--grid-cols, repeat(3, 1fr));
-                            grid-template-rows: var(--grid-rows, auto);
+                            gap: 10px;
+                            grid-template-columns: repeat(3, 1fr);
+                            grid-template-rows: auto;
                             box-sizing: border-box;
                         }
 
@@ -958,14 +958,14 @@
                         /* 响应式支持 */
                         @media (max-width: 768px) {
                             .grid-container {
-                                grid-template-columns: var(--mobile-cols, repeat(2, 1fr));
-                                gap: var(--mobile-gap, 8px);
+                                grid-template-columns: repeat(2, 1fr);
+                                gap: 8px;
                             }
                         }
 
                         @media (max-width: 480px) {
                             .grid-container {
-                                grid-template-columns: var(--small-mobile-cols, 1fr);
+                                grid-template-columns: 1fr;
                             }
                         }
                     </style>
@@ -988,21 +988,18 @@
       const minWidth = this.getAttribute("min-width") || "200px";
       const maxWidth = this.getAttribute("max-width") || "1fr";
 
-      // 设置CSS自定义属性
-      container.style.setProperty("--grid-gap", gap);
-      container.style.setProperty("--grid-rows", rows);
-
+      // 直接设置grid样式，不依赖CSS变量
       if (autoFit) {
-        container.style.setProperty(
-          "--grid-cols",
-          `repeat(auto-fit, minmax(${minWidth}, ${maxWidth}))`
-        );
+        container.style.gridTemplateColumns = `repeat(auto-fit, minmax(${minWidth}, ${maxWidth}))`;
+        container.style.gridTemplateRows = "auto";
       } else {
-        container.style.setProperty("--grid-cols", cols);
+        container.style.gridTemplateColumns = cols;
+        container.style.gridTemplateRows = rows;
       }
+      container.style.gap = gap;
     }
 
-    // 添加网格项
+    // 添加多个网格项
     addItems(...elements) {
       for (const element of elements) {
         const item = document.createElement("div");
@@ -1040,18 +1037,21 @@
   const grid = document.createElement("grid-layout");
   // 设置网格配置
   grid.setGridConfig({
-    rows: "repeat(2, 45px)",
-    cols: "repeat(2, 1fr)",
+    rows: "repeat(3, 45px)",
+    cols: "repeat(2, minmax(auto, 1fr))", //文字溢出暂无解决方案
     gap: "2px",
   });
   grid.slot = "setting";
-  const label1 = document.createElement("span");
-  const label2 = document.createElement("span");
+  const label1 = document.createElement("div");
+  const label2 = document.createElement("div");
+  const label3 = document.createElement("div");
   label1.textContent = "期望价格";
-  label2.textContent = "查询间隔";
+  label2.textContent = "汇率";
+  label3.textContent = "查询间隔";
   const input1 = document.createElement("input-number");
   const input2 = document.createElement("input-number");
-  grid.addItems(label1, input1, label2, input2);
+  const input3 = document.createElement("input-number");
+  grid.addItems(label1, input1, label2, input2, label3, input3);
   // 执行按钮
   const statusBtn = document.createElement("toggle-button");
   statusBtn.slot = "trigger";
