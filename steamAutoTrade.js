@@ -59,9 +59,9 @@
           timer.clearTimer(orderInfo.intervalID);
           orderInfo.intervalID = timer.setInterval(
             () => {
-              querySellOrderList(orderInfo.itemID);
+              querySellOrderList(orderInfo);
             },
-            currentSettings.queryInterval * 10000,
+            currentSettings.queryInterval * 1000 * 100,
             { accurate: true, maxDrift: 5, name: "轮询商品列表" }
           );
         }
@@ -70,7 +70,7 @@
           timer.clearTimer(orderInfo.intervalID);
           orderInfo.intervalID = timer.setInterval(
             () => {
-              querySellOrderList(orderInfo.itemID);
+              querySellOrderList(orderInfo);
             },
             currentSettings.queryInterval * 1000,
             { accurate: true, maxDrift: 5, name: "轮询商品列表" }
@@ -183,7 +183,7 @@
         if (newValue) {
           orderInfo.intervalID = timer.setInterval(
             () => {
-              querySellOrderList(orderInfo.itemID);
+              querySellOrderList(orderInfo);
             },
             currentSettings.queryInterval * 1000,
             { accurate: true, maxDrift: 5, name: "轮询商品列表" }
@@ -255,7 +255,7 @@
   }
 
   // 查询正在销售的商品列表
-  function querySellOrderList(itemID) {
+  function querySellOrderList(orderInfo) {
     // 改用steam暴露的api以处理错误信息
     $J.ajax({
       url: "https://steamcommunity.com/market/itemordershistogram",
@@ -268,7 +268,7 @@
           g_rgWalletInfo["wallet_currency"] != 0
             ? g_rgWalletInfo["wallet_currency"]
             : 1,
-        item_nameid: itemID,
+        item_nameid: orderInfo.itemID,
       },
     }).error(function () {
       // 处理错误监测风控
