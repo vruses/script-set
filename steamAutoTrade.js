@@ -232,7 +232,6 @@
                 runOnce = true;
               }
               const response = JSON.parse(this.responseText);
-              console.log(response);
               // 当获取信息错误时应将当前价格设置为无穷避免误购买
               const currentPrice =
                 response?.sell_order_graph?.[0]?.[0] ?? 10e20;
@@ -252,6 +251,59 @@
 
       return originalSend.apply(this, arguments);
     };
+
+    // 连接服务器
+    const url = "ws://127.0.0.1:27060";
+    const socket = new ReconnectingWebSocket(url, null, {
+      debug: true,
+      reconnectInterval: 2000,
+    });
+
+    // 连接打开时
+    socket.addEventListener("open", (event) => {
+      console.log("WebSocket 连接已建立");
+    });
+
+    // 接收消息
+    socket.addEventListener("message", (event) => {
+      let data;
+      try {
+        // 如果服务器发送的是 JSON 数据
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.log("接收到文本消息:", event.data);
+      }
+      // data返回itemID和最低售卖价
+      if (data?.itemID === orderInfo.itemID) {
+        console.log("检测到可购买订单信息：", data);
+        const currentPrice = data.lowestSellPrice / 100;
+        const expectedPrice = currentSettings.expectedPrice;
+        const exchangeRate = currentSettings.exchangeRate;
+        // 如果符合计算后的期望价格创建订单请求
+        if (checkPriceExpectation(currentPrice, expectedPrice, exchangeRate)) {
+          createBuyOrder(expectedPrice, exchangeRate);
+        }
+      }
+    });
+
+    // 错误处理
+    socket.addEventListener("error", (event) => {
+      console.error("服务器连接错误:", event);
+    });
+
+    // 连接关闭时
+    socket.addEventListener("close", (event) => {
+      console.log("服务器连接已关闭", event.code, event.reason);
+    });
+
+    // 发送消息
+    function sendMessage(message) {
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(message));
+      } else {
+        console.error("服务器未连接");
+      }
+    }
   }
 
   // 查询正在销售的商品列表
@@ -1318,6 +1370,283 @@
       if (config.maxWidth) this.setAttribute("max-width", config.maxWidth);
     }
   }
+
+  /**
+   * 为了方便不引入外部cdn
+   * refer:https://github.com/joewalnes/reconnecting-websocket
+   * 防止意外的断开，重连ws服务器
+   */
+  function ReconnectingWebSocket(url, protocols, options) {
+    // Default settings
+    var settings = {
+      /** Whether this instance should log debug messages. */
+      debug: false,
+
+      /** Whether or not the websocket should attempt to connect immediately upon instantiation. */
+      automaticOpen: true,
+
+      /** The number of milliseconds to delay before attempting to reconnect. */
+      reconnectInterval: 1000,
+      /** The maximum number of milliseconds to delay a reconnection attempt. */
+      maxReconnectInterval: 30000,
+      /** The rate of increase of the reconnect delay. Allows reconnect attempts to back off when problems persist. */
+      reconnectDecay: 1.5,
+
+      /** The maximum time in milliseconds to wait for a connection to succeed before closing and retrying. */
+      timeoutInterval: 2000,
+
+      /** The maximum number of reconnection attempts to make. Unlimited if null. */
+      maxReconnectAttempts: null,
+
+      /** The binary type, possible values 'blob' or 'arraybuffer', default 'blob'. */
+      binaryType: "blob",
+    };
+    if (!options) {
+      options = {};
+    }
+
+    // Overwrite and define settings with options if they exist.
+    for (var key in settings) {
+      if (typeof options[key] !== "undefined") {
+        this[key] = options[key];
+      } else {
+        this[key] = settings[key];
+      }
+    }
+
+    // These should be treated as read-only properties
+
+    /** The URL as resolved by the constructor. This is always an absolute URL. Read only. */
+    this.url = url;
+
+    /** The number of attempted reconnects since starting, or the last successful connection. Read only. */
+    this.reconnectAttempts = 0;
+
+    /**
+     * The current state of the connection.
+     * Can be one of: WebSocket.CONNECTING, WebSocket.OPEN, WebSocket.CLOSING, WebSocket.CLOSED
+     * Read only.
+     */
+    this.readyState = WebSocket.CONNECTING;
+
+    /**
+     * A string indicating the name of the sub-protocol the server selected; this will be one of
+     * the strings specified in the protocols parameter when creating the WebSocket object.
+     * Read only.
+     */
+    this.protocol = null;
+
+    // Private state variables
+
+    var self = this;
+    var ws;
+    var forcedClose = false;
+    var timedOut = false;
+    var eventTarget = document.createElement("div");
+
+    // Wire up "on*" properties as event handlers
+
+    eventTarget.addEventListener("open", function (event) {
+      self.onopen(event);
+    });
+    eventTarget.addEventListener("close", function (event) {
+      self.onclose(event);
+    });
+    eventTarget.addEventListener("connecting", function (event) {
+      self.onconnecting(event);
+    });
+    eventTarget.addEventListener("message", function (event) {
+      self.onmessage(event);
+    });
+    eventTarget.addEventListener("error", function (event) {
+      self.onerror(event);
+    });
+
+    // Expose the API required by EventTarget
+
+    this.addEventListener = eventTarget.addEventListener.bind(eventTarget);
+    this.removeEventListener =
+      eventTarget.removeEventListener.bind(eventTarget);
+    this.dispatchEvent = eventTarget.dispatchEvent.bind(eventTarget);
+
+    /**
+     * This function generates an event that is compatible with standard
+     * compliant browsers and IE9 - IE11
+     *
+     * This will prevent the error:
+     * Object doesn't support this action
+     *
+     * http://stackoverflow.com/questions/19345392/why-arent-my-parameters-getting-passed-through-to-a-dispatched-event/19345563#19345563
+     * @param s String The name that the event should use
+     * @param args Object an optional object that the event will use
+     */
+    function generateEvent(s, args) {
+      var evt = document.createEvent("CustomEvent");
+      evt.initCustomEvent(s, false, false, args);
+      return evt;
+    }
+
+    this.open = function (reconnectAttempt) {
+      ws = new WebSocket(self.url, protocols || []);
+      ws.binaryType = this.binaryType;
+
+      if (reconnectAttempt) {
+        if (
+          this.maxReconnectAttempts &&
+          this.reconnectAttempts > this.maxReconnectAttempts
+        ) {
+          return;
+        }
+      } else {
+        eventTarget.dispatchEvent(generateEvent("connecting"));
+        this.reconnectAttempts = 0;
+      }
+
+      if (self.debug || ReconnectingWebSocket.debugAll) {
+        console.debug("ReconnectingWebSocket", "attempt-connect", self.url);
+      }
+
+      var localWs = ws;
+      var timeout = setTimeout(function () {
+        if (self.debug || ReconnectingWebSocket.debugAll) {
+          console.debug(
+            "ReconnectingWebSocket",
+            "connection-timeout",
+            self.url
+          );
+        }
+        timedOut = true;
+        localWs.close();
+        timedOut = false;
+      }, self.timeoutInterval);
+
+      ws.onopen = function (event) {
+        clearTimeout(timeout);
+        if (self.debug || ReconnectingWebSocket.debugAll) {
+          console.debug("ReconnectingWebSocket", "onopen", self.url);
+        }
+        self.protocol = ws.protocol;
+        self.readyState = WebSocket.OPEN;
+        self.reconnectAttempts = 0;
+        var e = generateEvent("open");
+        e.isReconnect = reconnectAttempt;
+        reconnectAttempt = false;
+        eventTarget.dispatchEvent(e);
+      };
+
+      ws.onclose = function (event) {
+        clearTimeout(timeout);
+        ws = null;
+        if (forcedClose) {
+          self.readyState = WebSocket.CLOSED;
+          eventTarget.dispatchEvent(generateEvent("close"));
+        } else {
+          self.readyState = WebSocket.CONNECTING;
+          var e = generateEvent("connecting");
+          e.code = event.code;
+          e.reason = event.reason;
+          e.wasClean = event.wasClean;
+          eventTarget.dispatchEvent(e);
+          if (!reconnectAttempt && !timedOut) {
+            if (self.debug || ReconnectingWebSocket.debugAll) {
+              console.debug("ReconnectingWebSocket", "onclose", self.url);
+            }
+            eventTarget.dispatchEvent(generateEvent("close"));
+          }
+
+          var timeout =
+            self.reconnectInterval *
+            Math.pow(self.reconnectDecay, self.reconnectAttempts);
+          setTimeout(
+            function () {
+              self.reconnectAttempts++;
+              self.open(true);
+            },
+            timeout > self.maxReconnectInterval
+              ? self.maxReconnectInterval
+              : timeout
+          );
+        }
+      };
+      ws.onmessage = function (event) {
+        if (self.debug || ReconnectingWebSocket.debugAll) {
+          console.debug(
+            "ReconnectingWebSocket",
+            "onmessage",
+            self.url,
+            event.data
+          );
+        }
+        var e = generateEvent("message");
+        e.data = event.data;
+        eventTarget.dispatchEvent(e);
+      };
+      ws.onerror = function (event) {
+        if (self.debug || ReconnectingWebSocket.debugAll) {
+          console.debug("ReconnectingWebSocket", "onerror", self.url, event);
+        }
+        eventTarget.dispatchEvent(generateEvent("error"));
+      };
+    };
+
+    // Whether or not to create a websocket upon instantiation
+    if (this.automaticOpen == true) {
+      this.open(false);
+    }
+
+    /**
+     * Transmits data to the server over the WebSocket connection.
+     *
+     * @param data a text string, ArrayBuffer or Blob to send to the server.
+     */
+    this.send = function (data) {
+      if (ws) {
+        if (self.debug || ReconnectingWebSocket.debugAll) {
+          console.debug("ReconnectingWebSocket", "send", self.url, data);
+        }
+        return ws.send(data);
+      } else {
+        throw "INVALID_STATE_ERR : Pausing to reconnect websocket";
+      }
+    };
+
+    /**
+     * Closes the WebSocket connection or connection attempt, if any.
+     * If the connection is already CLOSED, this method does nothing.
+     */
+    this.close = function (code, reason) {
+      // Default CLOSE_NORMAL code
+      if (typeof code == "undefined") {
+        code = 1000;
+      }
+      forcedClose = true;
+      if (ws) {
+        ws.close(code, reason);
+      }
+    };
+
+    /**
+     * Additional public API method to refresh the connection if still open (close, re-open).
+     * For example, if the app suspects bad data / missed heart beats, it can try to refresh.
+     */
+    this.refresh = function () {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }
+  ReconnectingWebSocket.prototype.onopen = function (event) {};
+  ReconnectingWebSocket.prototype.onclose = function (event) {};
+  ReconnectingWebSocket.prototype.onconnecting = function (event) {};
+  ReconnectingWebSocket.prototype.onmessage = function (event) {};
+  ReconnectingWebSocket.prototype.onerror = function (event) {};
+
+  ReconnectingWebSocket.debugAll = false;
+
+  ReconnectingWebSocket.CONNECTING = WebSocket.CONNECTING;
+  ReconnectingWebSocket.OPEN = WebSocket.OPEN;
+  ReconnectingWebSocket.CLOSING = WebSocket.CLOSING;
+  ReconnectingWebSocket.CLOSED = WebSocket.CLOSED;
 
   main();
 })();
